@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../../firebase';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../../firebase';
+import { signOut, onAuthStateChanged, updateProfile } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import './Dashboard.css';
 
 const Dashboard = ({ userType = 'particulier' }) => {
@@ -98,9 +99,10 @@ const Dashboard = ({ userType = 'particulier' }) => {
             </div>
           </div>
         </header>
-
-        <div className="content-area">
-          {renderContent()}
+        <div className="dashboard-content-scrollable">
+          <div className="central-content">
+            {renderContent()}
+          </div>
         </div>
       </main>
     </div>
@@ -108,28 +110,44 @@ const Dashboard = ({ userType = 'particulier' }) => {
 };
 
 // Composants de contenu
-const AperçuContent = ({ userType }) => (
-  <div className="dashboard-grid">
-    <div className="stat-card">
-      <h3>Devis en cours</h3>
-      <p className="stat">5</p>
-    </div>
-    <div className="stat-card">
-      <h3>Messages non lus</h3>
-      <p className="stat">3</p>
-    </div>
-    <div className="stat-card">
-      <h3>Projets terminés</h3>
-      <p className="stat">12</p>
-    </div>
-    {userType === 'professionnel' && (
-      <div className="stat-card">
-        <h3>Taux de réponse</h3>
-        <p className="stat">95%</p>
+const AperçuContent = ({ userType }) => {
+  const navigate = useNavigate();
+  
+  return (
+    <div className="apercu-content">
+      <div className="welcome-section">
+        <h2>Bienvenue sur votre tableau de bord</h2>
+        <p>Gérez vos devis et suivez vos projets d'étanchéité en toute simplicité.</p>
       </div>
-    )}
-  </div>
-);
+
+      {userType === 'particulier' && (
+        <div className="action-section">
+          <button 
+            className="devis-button"
+            onClick={() => navigate('/devis/particulier')}
+          >
+            Faire une demande de devis
+          </button>
+        </div>
+      )}
+
+      <div className="stats-section">
+        <div className="stat-card">
+          <h3>Devis en cours</h3>
+          <p className="stat-number">0</p>
+        </div>
+        <div className="stat-card">
+          <h3>Messages non lus</h3>
+          <p className="stat-number">0</p>
+        </div>
+        <div className="stat-card">
+          <h3>Projets terminés</h3>
+          <p className="stat-number">0</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const DevisContent = ({ userType }) => {
   const [devis, setDevis] = useState([
@@ -232,37 +250,171 @@ const MessagesContent = () => (
   </div>
 );
 
-const ProfileContent = ({ userType }) => (
-  <div className="profile-container">
-    <div className="profile-header">
-      <div className="profile-avatar">
-        <img src="https://via.placeholder.com/100" alt="Profile" />
+const ProfileContent = ({ userType }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [userData, setUserData] = useState({
+    displayName: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Récupérer les données de l'utilisateur au chargement
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setUserData({
+              displayName: currentUser.displayName || '',
+              email: currentUser.email || '',
+              phone: data.phone || '',
+              address: data.address || ''
+            });
+          }
+        }
+        setLoading(false);
+      } catch (err) {
+        setError('Erreur lors de la récupération des données');
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  // Gérer les changements dans les champs
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setUserData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Sauvegarder les modifications
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        // Mettre à jour le profil Firebase Auth
+        await updateProfile(currentUser, {
+          displayName: userData.displayName
+        });
+
+        // Mettre à jour les données supplémentaires dans Firestore
+        await setDoc(doc(db, 'users', currentUser.uid), {
+          phone: userData.phone,
+          address: userData.address,
+          userType: userType
+        }, { merge: true });
+
+        setSuccess('Profil mis à jour avec succès !');
+        setIsEditing(false);
+      }
+    } catch (err) {
+      setError('Erreur lors de la mise à jour du profil');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Chargement...</div>;
+  }
+
+  return (
+    <div className="profile-container">
+      <div className="profile-header">
+        <div className="profile-avatar">
+          <img src="https://via.placeholder.com/100" alt="Profile" />
+        </div>
+        <div className="profile-info">
+          <h2>{userData.displayName || 'Utilisateur'}</h2>
+          <p>{userType === 'professionnel' ? 'Professionnel' : 'Particulier'}</p>
+        </div>
       </div>
-      <div className="profile-info">
-        <h2>Jean Dupont</h2>
-        <p>{userType === 'professionnel' ? 'Professionnel' : 'Particulier'}</p>
+
+      {error && <div className="error-message">{error}</div>}
+      {success && <div className="success-message">{success}</div>}
+
+      <div className="profile-details">
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Nom complet</label>
+            <input
+              type="text"
+              name="displayName"
+              value={userData.displayName}
+              onChange={handleChange}
+              readOnly={!isEditing}
+            />
+          </div>
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              name="email"
+              value={userData.email}
+              readOnly
+            />
+          </div>
+          <div className="form-group">
+            <label>Téléphone</label>
+            <input
+              type="tel"
+              name="phone"
+              value={userData.phone}
+              onChange={handleChange}
+              readOnly={!isEditing}
+            />
+          </div>
+          <div className="form-group">
+            <label>Adresse</label>
+            <textarea
+              name="address"
+              value={userData.address}
+              onChange={handleChange}
+              readOnly={!isEditing}
+            />
+          </div>
+          {!isEditing ? (
+            <button
+              type="button"
+              className="edit-button"
+              onClick={() => setIsEditing(true)}
+            >
+              Modifier le profil
+            </button>
+          ) : (
+            <div className="button-group">
+              <button type="submit" className="save-button">
+                Enregistrer
+              </button>
+              <button
+                type="button"
+                className="cancel-button"
+                onClick={() => setIsEditing(false)}
+              >
+                Annuler
+              </button>
+            </div>
+          )}
+        </form>
       </div>
     </div>
-    <div className="profile-details">
-      <form>
-        <div className="form-group">
-          <label>Email</label>
-          <input type="email" value="jean.dupont@email.com" readOnly />
-        </div>
-        <div className="form-group">
-          <label>Téléphone</label>
-          <input type="tel" value="+33 6 00 00 00 00" readOnly />
-        </div>
-        <div className="form-group">
-          <label>Adresse</label>
-          <textarea readOnly>123 Rue Example, 75000 Paris</textarea>
-        </div>
-        <button type="button" className="edit-button">
-          Modifier le profil
-        </button>
-      </form>
-    </div>
-  </div>
-);
+  );
+};
 
 export default Dashboard;
