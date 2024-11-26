@@ -1,0 +1,167 @@
+{
+  "users": {
+    "particuliers": {
+      "$uid": {
+        "profile": {
+          "nom": "Dupont",
+          "prenom": "Jean",
+          "email": "jean.dupont@email.com",
+          "telephone": "+33600000000",
+          "adresse": {
+            "rue": "123 Rue Example",
+            "ville": "Paris",
+            "codePostal": "75000",
+            "pays": "France"
+          },
+          "dateCreation": "timestamp",
+          "derniereMiseAJour": "timestamp",
+          "statut": "actif"
+        },
+        "devisEnvoyes": {
+          "$devisId": {
+            "dateEnvoi": "timestamp",
+            "statut": "en_attente"
+          }
+        }
+      }
+    },
+    "professionnels": {
+      "$uid": {
+        "profile": {
+          "nomEntreprise": "Entreprise Example",
+          "email": "contact@entreprise.com",
+          "telephone": "+33600000000",
+          "adresse": {
+            "rue": "456 Rue Business",
+            "ville": "Lyon",
+            "codePostal": "69000",
+            "pays": "France"
+          },
+          "informationsLegales": {
+            "siret": "12345678900000",
+            "kbis": "url_stockage_kbis",
+            "dateCreationEntreprise": "timestamp"
+          },
+          "certifications": {
+            "$certificationId": {
+              "nom": "Certification Example",
+              "dateObtention": "timestamp",
+              "dateExpiration": "timestamp",
+              "document": "url_stockage_document"
+            }
+          },
+          "assurance": {
+            "numero": "ASS123456",
+            "dateExpiration": "timestamp",
+            "document": "url_stockage_document"
+          },
+          "experience": "10",
+          "dateCreation": "timestamp",
+          "derniereMiseAJour": "timestamp",
+          "statut": "actif"
+        },
+        "devisRecus": {
+          "$devisId": {
+            "dateReception": "timestamp",
+            "statut": "en_attente"
+          }
+        }
+      }
+    },
+    "administrateurs": {
+      "$uid": {
+        "role": "super_admin",
+        "email": "admin@plateforme.com",
+        "dateCreation": "timestamp",
+        "derniereMiseAJour": "timestamp",
+        "permissions": {
+          "gestionUtilisateurs": true,
+          "validationDevis": true,
+          "validationMessages": true,
+          "validationPhotos": true
+        },
+        "statut": "actif"
+      }
+    }
+  },
+  "devis": {
+    "particuliers": {
+      "$devisId": {
+        "particulierId": "uid_particulier",
+        "projet": {
+          "titre": "Rénovation salle de bain",
+          "description": "Description détaillée du projet",
+          "detailsTechniques": "Spécifications techniques du projet",
+          "photos": {
+            "$photoId": {
+              "url": "url_stockage_photo",
+              "dateAjout": "timestamp"
+            }
+          }
+        },
+        "coordonnees": {
+          "nom": "Dupont",
+          "prenom": "Jean",
+          "adresse": {
+            "rue": "123 Rue Example",
+            "ville": "Paris",
+            "codePostal": "75000",
+            "pays": "France"
+          },
+          "telephone": "+33600000000",
+          "email": "jean.dupont@email.com"
+        },
+        "statut": "en_attente",
+        "dateCreation": "timestamp",
+        "derniereMiseAJour": "timestamp"
+      }
+    },
+    "professionnels": {
+      "$devisId": {
+        "devisParticulierId": "id_devis_particulier",
+        "professionnelId": "uid_professionnel",
+        "prenomGerant": "Pierre",
+        "prestations": {
+          "$prestationId": {
+            "description": "Description de la prestation",
+            "quantite": 1,
+            "prixUnitaire": 1000
+          }
+        },
+        "montantTotal": 5000,
+        "statut": "en_attente",
+        "dateCreation": "timestamp",
+        "derniereMiseAJour": "timestamp",
+        "commentaires": "Commentaires sur le devis"
+      }
+    }
+  },
+  "contacts": {
+    "$contactId": {
+      "name": "string",
+      "email": "string",
+      "subject": "string",
+      "message": "string",
+      "status": "string",
+      "createdAt": "timestamp",
+      "readAt": "timestamp"
+    }
+  },
+  "indexes": {
+    "devisParStatut": {
+      "$statut": {
+        "$devisId": true
+      }
+    },
+    "devisParProfessionnel": {
+      "$professionnelId": {
+        "$devisId": true
+      }
+    },
+    "devisParParticulier": {
+      "$particulierId": {
+        "$devisId": true
+      }
+    }
+  }
+}
