@@ -78,11 +78,33 @@
 }
 
 .map-container {
+  position: relative;
   background: white;
   padding: 1rem;
   border-radius: 10px;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   height: 400px;
+  width: 100%;
+  margin-top: 2rem;
+}
+
+.map-container > div:not(.gm-style) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.map-container .gm-style,
+.map-container .gm-style > div,
+.map-container .gm-style > div > div {
+  position: absolute !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .contact-form-container {

@@ -10,6 +10,7 @@ import {
   faHeadset, 
   faTrophy 
 } from '@fortawesome/free-solid-svg-icons';
+import Footer from '../Footer/Footer';
 import './Home.css';
 
 const Home = () => {
@@ -140,19 +141,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Footer Section */}
-      <footer className="footer">
-        <div className="footer-content">
-          <div className="footer-links">
-            <Link to="/mentions-legales" className="footer-link">Mentions Légales</Link>
-            <Link to="/cgv" className="footer-link">CGV</Link>
-            <Link to="/confidentialite" className="footer-link">Confidentialité</Link>
-          </div>
-          <div className="footer-copyright">
-            <p>&copy; 2024 EtancheConnect. Tous droits réservés.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };

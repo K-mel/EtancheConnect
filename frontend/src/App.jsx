@@ -11,6 +11,8 @@ import ForgotPassword from './components/ForgotPassword/ForgotPassword';
 import LegalNotice from './components/LegalNotice/LegalNotice';
 import Terms from './components/Terms/Terms';
 import Privacy from './components/Privacy/Privacy';
+import About from './components/About/About';
+import HowItWorks from './components/HowItWorks/HowItWorks';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
 import './App.css';
 
@@ -25,6 +27,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/dashboard" element={<Dashboard userType="particulier" />} />
           <Route path="/dashboard/pro" element={<Dashboard userType="professionnel" />} />
           <Route path="/dashboard/admin" element={<Dashboard userType="admin" />} />
