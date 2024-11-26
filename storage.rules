@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Règles pour les documents des professionnels
+    match /documents/{userId}/{fileName} {
+      // Autoriser la lecture uniquement pour l'utilisateur propriétaire et les admins
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+      
+      // Autoriser l'écriture uniquement pour l'utilisateur propriétaire avec des restrictions
+      allow write: if request.auth != null &&
+        request.auth.uid == userId &&
+        // Vérifier la taille du fichier (max 10MB)
+        request.resource.size <= 10 * 1024 * 1024 &&
+        // Autoriser uniquement les PDF et les images
+        (
+          request.resource.contentType.matches('application/pdf') ||
+          request.resource.contentType.matches('image/.*')
+        );
+    }
+
+    // Règles par défaut pour tous les autres fichiers
+    match /{allPaths=**} {
+      // Lecture uniquement pour les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      
+      // Écriture avec restrictions
+      allow write: if request.auth != null &&
+        // Limiter la taille des fichiers à 5MB
+        request.resource.size <= 5 * 1024 * 1024 &&
+        // Autoriser uniquement les images
+        request.resource.contentType.matches('image/.*');
+    }
+  }
+}
