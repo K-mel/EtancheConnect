@@ -1,4 +1,6 @@
-# Full-Stack Application avec React, Node.js et Firebase
+# EtancheConnect
+
+Une plateforme moderne de mise en relation entre particuliers et professionnels de l'étanchéité.
 
 ## Description
 Application web full-stack utilisant React pour le frontend, Node.js pour le backend, et Firebase pour la base de données.
@@ -42,3 +44,47 @@ Créer un fichier `.env` dans le dossier backend et frontend avec les variables 
 - Authentification Firebase
 - CORS configuré
 - Protection des routes API
+
+## 🌟 Fonctionnalités
+
+- Mise en relation particuliers/professionnels
+- Système de devis en ligne
+- Paiement sécurisé
+- Messagerie intégrée
+- Tableau de bord personnalisé
+- Protection des données (RGPD)
+
+## 🛠️ Technologies
+
+- Frontend: React.js
+- Backend: Node.js
+- Base de données: Firebase
+- Authentification: Firebase Auth
+- Paiement: Stripe (à venir)
+
+## 📱 Responsive
+
+Application entièrement responsive pour une expérience optimale sur tous les appareils.
+
+## 🔒 Sécurité
+
+- Authentification sécurisée
+- Paiements protégés
+- Données chiffrées
+- Conformité RGPD
+
+## 📄 Documentation légale
+
+- Mentions légales
+- Conditions générales de vente
+- Politique de confidentialité
+
+## 🚀 Installation
+
+```bash
+# Installation des dépendances
+npm install
+
+# Lancement en développement
+npm start
+```
