@@ -10,10 +10,13 @@ import {
   faHeadset, 
   faTrophy 
 } from '@fortawesome/free-solid-svg-icons';
+import { useAuth } from '../../contexts/AuthContext';
 import Footer from '../Footer/Footer';
 import './Home.css';
 
 const Home = () => {
+  const { currentUser } = useAuth();
+
   return (
     <div className="home">
       {/* Hero Section */}
@@ -23,7 +26,7 @@ const Home = () => {
             <h1>Votre solution d'étanchéité en un clic</h1>
             <p>Trouvez des experts certifiés pour protéger votre patrimoine</p>
             <div className="hero-cta">
-              <Link to="/devis" className="cta-button primary">Demander un devis gratuit</Link>
+              <Link to={currentUser ? "/devis/particulier" : "/register"} className="cta-button primary">Demander un devis gratuit</Link>
               <Link to="/how-it-works" className="cta-button secondary">Comment ça marche</Link>
             </div>
             <div className="hero-stats">
