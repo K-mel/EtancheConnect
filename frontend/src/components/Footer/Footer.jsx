@@ -41,8 +41,8 @@ const Footer = () => {
                 <div className="footer-section">
                     <h3>Contact</h3>
                     <p>Email: contact@etancheconnect.fr</p>
-                    <p>Tél: +33 (0)1 23 45 67 89</p>
-                    <p>Adresse: 123 Avenue de l'Étanchéité<br />75000 Paris, France</p>
+                    <p>Tél: +33 (0)6 03 40 28 28</p>
+                    <p>Adresse: 44 rue callelongue<br />13008 Marseille, France</p>
                 </div>
             </div>
 

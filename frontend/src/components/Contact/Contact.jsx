@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { submitContactForm } from '../../services/contactService';
 import Footer from '../Footer/Footer';
 import './Contact.css';
@@ -15,28 +14,8 @@ const Contact = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
 
-  // Configuration Google Maps
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY
-  });
-
-  const center = {
-    lat: 48.8566,
-    lng: 2.3522
-  };
-
-  const mapContainerStyle = {
-    width: '100%',
-    height: '100%',
-    borderRadius: '8px'
-  };
-
-  const mapOptions = {
-    zoomControl: true,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false
+  const mapIframe = {
+    __html: '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2905.721482753424!2d5.386269576514492!3d43.25725867794856!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x12c9c76134e0d16b%3A0x851be3b4907a1a9e!2s44%20Rue%20Callelongue%2C%2013008%20Marseille!5e0!3m2!1sfr!2sfr!4v1732621374235!5m2!1sfr!2sfr" width="100%" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>'
   };
 
   const handleInputChange = (e) => {
@@ -85,7 +64,7 @@ const Contact = () => {
                 <i className="fas fa-map-marker-alt"></i>
                 <div>
                   <h3>Notre Adresse</h3>
-                  <p>123 Rue de Paris, 75000 Paris</p>
+                  <p>44 rue callelongue, 13008 Marseille</p>
                 </div>
               </div>
 
@@ -93,7 +72,7 @@ const Contact = () => {
                 <i className="fas fa-phone"></i>
                 <div>
                   <h3>Téléphone</h3>
-                  <p>+33 1 23 45 67 89</p>
+                  <p>+33 6 03 40 28 28</p>
                 </div>
               </div>
 
@@ -115,19 +94,11 @@ const Contact = () => {
               </div>
             </div>
 
-            <div className="map-container">
-              {isLoaded ? (
-                <GoogleMap
-                  mapContainerStyle={mapContainerStyle}
-                  center={center}
-                  zoom={15}
-                  options={mapOptions}
-                >
-                  <Marker position={center} />
-                </GoogleMap>
-              ) : (
-                <div>Chargement de la carte...</div>
-              )}
+            <div className="map-section">
+              <div 
+                className="google-map"
+                dangerouslySetInnerHTML={mapIframe}
+              />
             </div>
           </div>
 
