@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonction pour vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fonction pour vérifier si l'utilisateur est admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Règles pour la collection users
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Règles pour la collection devis
+    match /devis/{devisId} {
+      // Permettre la création si l'utilisateur est authentifié et que le devis lui appartient
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // Permettre la lecture si l'utilisateur est le propriétaire ou un professionnel
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professionnel' ||
+        isAdmin()
+      );
+      
+      // Permettre la mise à jour si l'utilisateur est le propriétaire ou un admin
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        isAdmin()
+      );
+      
+      // Permettre la suppression uniquement aux admins
+      allow delete: if isAdmin();
+    }
+
+    // Règles pour la collection contacts
+    match /contacts/{contactId} {
+      allow create: if isAuthenticated();
+      allow read, write: if isAdmin();
+    }
+  }
+}

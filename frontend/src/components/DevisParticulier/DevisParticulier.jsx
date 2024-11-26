@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../firebase';
+import { useAuth } from '../../contexts/AuthContext';
 import './DevisParticulier.css';
 
 const DevisParticulier = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     typeProjet: '',
     surface: '',
@@ -14,6 +19,9 @@ const DevisParticulier = () => {
     disponibilite: '',
     photos: []
   });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -32,13 +40,87 @@ const DevisParticulier = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Implémenter la logique d'envoi du formulaire
-    console.log('Formulaire soumis:', formData);
+    setError('');
+    setLoading(true);
+    setSuccess(false);
+
+    try {
+      if (!currentUser) {
+        throw new Error('Vous devez être connecté pour soumettre un devis');
+      }
+
+      // Upload des photos
+      const photoUrls = [];
+      if (formData.photos.length > 0) {
+        for (const photo of formData.photos) {
+          try {
+            const photoRef = ref(storage, `devis_photos/${currentUser.uid}/${Date.now()}_${photo.name}`);
+            const snapshot = await uploadBytes(photoRef, photo);
+            const url = await getDownloadURL(snapshot.ref);
+            photoUrls.push(url);
+          } catch (uploadError) {
+            console.error('Erreur lors de l\'upload de la photo:', uploadError);
+            throw new Error('Erreur lors de l\'upload des photos. Veuillez réessayer.');
+          }
+        }
+      }
+
+      // Préparer les données du devis
+      const devisData = {
+        typeProjet: formData.typeProjet,
+        surface: formData.surface,
+        description: formData.description,
+        adresse: formData.adresse,
+        ville: formData.ville,
+        codePostal: formData.codePostal,
+        disponibilite: formData.disponibilite,
+        photos: photoUrls,
+        status: 'en_attente',
+        createdAt: serverTimestamp(),
+        userId: currentUser.uid,
+        userEmail: currentUser.email
+      };
+
+      // Créer le devis dans la collection principale
+      const devisRef = await addDoc(collection(db, 'devis'), devisData);
+      
+      // Créer une référence dans la sous-collection de l'utilisateur
+      await setDoc(doc(db, 'users', currentUser.uid, 'devis', devisRef.id), {
+        ...devisData,
+        mainDevisId: devisRef.id // Référence vers le document principal
+      });
+
+      setSuccess(true);
+      // Réinitialiser le formulaire
+      setFormData({
+        typeProjet: '',
+        surface: '',
+        description: '',
+        adresse: '',
+        ville: '',
+        codePostal: '',
+        disponibilite: '',
+        photos: []
+      });
+      
+      // Rediriger vers le dashboard après 2 secondes
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
+
+    } catch (err) {
+      console.error('Erreur lors de la soumission du devis:', err);
+      setError(err.message || 'Une erreur est survenue lors de l\'envoi du devis');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="devis-particulier-container">
       <h1>Demande de devis pour particulier</h1>
+      {error && <div className="error-message">{error}</div>}
+      {success && <div className="success-message">Votre demande de devis a été envoyée avec succès ! Redirection en cours...</div>}
       <form onSubmit={handleSubmit} className="devis-form">
         <div className="form-group">
           <label htmlFor="typeProjet">Type de projet *</label>
@@ -151,8 +233,8 @@ const DevisParticulier = () => {
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="submit-button">
-            Envoyer la demande de devis
+          <button type="submit" className="submit-button" disabled={loading}>
+            {loading ? 'Envoi en cours...' : 'Envoyer la demande de devis'}
           </button>
         </div>
       </form>
