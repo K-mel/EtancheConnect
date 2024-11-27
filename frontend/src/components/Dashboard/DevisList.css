@@ -130,6 +130,21 @@
   color: #721c24;
 }
 
+.status.en_discussion {
+  background-color: #FF9800;
+  color: white;
+}
+
+.status.devis_envoye {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status.attente_reponse {
+  background-color: #ffd700;
+  color: #000;
+}
+
 .devis-actions-cell {
   display: flex;
   gap: 0.5rem;
@@ -269,6 +284,82 @@
 
 .modal-footer button:hover {
   background-color: #5a6268;
+}
+
+/* Styles pour les formulaires de devis et messages */
+.devis-actions {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.action-button.send-devis {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.action-button.send-message {
+  background-color: #2196F3;
+  color: white;
+}
+
+.devis-form,
+.message-form {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group input[type="number"] {
+  width: 200px;
+}
+
+.submit-button {
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.submit-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #f44336;
+  margin-top: 10px;
+  font-size: 14px;
 }
 
 @media (max-width: 768px) {

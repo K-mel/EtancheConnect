@@ -831,8 +831,10 @@ const MessagesContent = ({ userRole }) => {
         const q = query(
           messagesRef,
           where('participants', 'array-contains', currentUser.uid),
-          orderBy('timestamp', 'desc')
+          orderBy('timestamp', 'asc')
         );
+
+        
 
         const querySnapshot = await getDocs(q);
         const messagesList = querySnapshot.docs.map(doc => ({

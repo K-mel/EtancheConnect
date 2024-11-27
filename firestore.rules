@@ -1,97 +1,142 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Fonction pour vérifier si l'utilisateur est authentifié
+    // Fonctions de base
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Fonction pour vérifier si l'utilisateur est admin
     function isAdmin() {
       return isAuthenticated() && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrateur';
     }
 
-    // Fonction pour vérifier si l'utilisateur est un professionnel
     function isProfessionnel() {
       return isAuthenticated() && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professionnel';
     }
 
-    // Fonction pour vérifier si l'utilisateur est particulier
     function isParticulier() {
       return isAuthenticated() && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'particulier';
     }
 
     // Fonction pour vérifier si l'utilisateur est participant à un message
-    function isParticipant() {
+    function isParticipant(data) {
       return isAuthenticated() && (
-        request.auth.uid in resource.data.participants ||
-        request.auth.uid == resource.data.senderId ||
-        request.auth.uid == resource.data.recipientId
+        request.auth.uid in data.participants ||
+        request.auth.uid == data.senderId ||
+        request.auth.uid == data.recipientId
       );
     }
 
     // Règles pour la collection users
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow list: if isAuthenticated();
-    }
-
-    // Règles pour les collections devis et projects
-    match /{collection}/{docId} {
-      allow read, list: if isAuthenticated() && (
-        collection in ['devis', 'projects'] && (
-          request.auth.uid == resource.data.userId || 
-          request.auth.uid == resource.data.professionalId ||
-          isProfessionnel() ||
-          isAdmin()
-        )
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isAdmin()
       );
       
-      allow create: if isAuthenticated() && 
-        collection in ['devis', 'projects'] &&
-        ((isParticulier() && request.resource.data.userId == request.auth.uid) || 
-         (isProfessionnel() && request.resource.data.professionalId == request.auth.uid) ||
-         isAdmin());
+      allow list: if isAuthenticated() && (
+        isAdmin() || 
+        request.auth.uid == userId
+      );
       
-      allow update: if isAuthenticated() && 
-        collection in ['devis', 'projects'] && (
-          request.auth.uid == resource.data.userId || 
-          request.auth.uid == resource.data.professionalId ||
+      allow update: if isAuthenticated() && (
+        (isAdmin() && (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt']) ||
           isAdmin()
-        );
+        )) ||
+        request.auth.uid == userId
+      );
       
-      allow delete: if isAuthenticated() && 
-        collection in ['devis', 'projects'] && (
-          (isParticulier() && resource.data.userId == request.auth.uid) ||
-          (isProfessionnel() && resource.data.professionalId == request.auth.uid) ||
-          isAdmin()
-        );
+      allow create: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Règles pour la collection devis
+    match /devis/{devisId} {
+      allow read, list: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid == resource.data.professionalId ||
+        isProfessionnel() ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && (
+        (isParticulier() && request.resource.data.userId == request.auth.uid) || 
+        (isProfessionnel() && request.resource.data.professionalId == request.auth.uid) ||
+        isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid == resource.data.professionalId ||
+        isProfessionnel() ||
+        isAdmin()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        (isParticulier() && resource.data.userId == request.auth.uid) ||
+        (isProfessionnel() && resource.data.professionalId == request.auth.uid) ||
+        isAdmin()
+      );
+    }
+
+    // Règles pour la collection projects
+    match /projects/{projectId} {
+      allow read, list: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid == resource.data.professionalId ||
+        isProfessionnel() ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && (
+        (isParticulier() && request.resource.data.userId == request.auth.uid) || 
+        (isProfessionnel() && request.resource.data.professionalId == request.auth.uid) ||
+        isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid == resource.data.professionalId ||
+        isProfessionnel() ||
+        isAdmin()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        (isParticulier() && resource.data.userId == request.auth.uid) ||
+        (isProfessionnel() && resource.data.professionalId == request.auth.uid) ||
+        isAdmin()
+      );
     }
 
     // Règles pour la collection messages
     match /messages/{messageId} {
       allow read, list: if isAuthenticated() && (
-        isParticipant() ||
+        isParticipant(resource.data) ||
         isAdmin()
       );
       
       allow create: if isAuthenticated() && (
+        isParticipant(request.resource.data) ||
         request.resource.data.senderId == request.auth.uid ||
-        request.auth.uid in request.resource.data.participants ||
         isAdmin()
       );
       
       allow update: if isAuthenticated() && (
-        isParticipant() ||
+        isParticipant(resource.data) ||
         isAdmin()
       );
       
       allow delete: if isAuthenticated() && (
-        isParticipant() ||
+        isParticipant(resource.data) ||
         isAdmin()
       );
     }
@@ -119,6 +164,22 @@ service cloud.firestore {
         request.auth.uid == resource.data.userId ||
         isAdmin()
       );
+    }
+
+    // Règles pour les statistiques
+    match /stats/{statId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Règle par défaut pour les autres collections
+    match /{document=**} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId ||
+        request.auth.uid == resource.data.professionalId ||
+        isAdmin()
+      );
+      allow write: if isAdmin();
     }
   }
 }
