@@ -21,18 +21,41 @@ export function AuthProvider({ children }) {
 
   async function signup(email, password, type, userData) {
     try {
+      console.log('Début de l\'inscription avec type:', type);
+      console.log('Données utilisateur reçues:', userData);
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Créer le document utilisateur dans Firestore
-      await setDoc(doc(db, 'users', user.uid), {
+      // Créer le document utilisateur dans Firestore avec un type cohérent
+      const userDataToStore = {
         ...userData,
         email,
-        userType: type,
-        createdAt: new Date().toISOString()
-      });
+        type: type, // S'assurer que le type est toujours présent
+        userType: type, // Pour la compatibilité avec l'ancien code
+        createdAt: new Date().toISOString(),
+        status: userData.status || 'pending'
+      };
 
-      setUserType(type); // Mettre à jour le type d'utilisateur immédiatement
+      // Supprimer les doublons potentiels
+      delete userDataToStore.userType;
+
+      console.log('Données à enregistrer dans Firestore:', userDataToStore);
+      
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, userDataToStore);
+      
+      // Vérifier que les données ont été correctement enregistrées
+      const savedDoc = await getDoc(userRef);
+      console.log('Données enregistrées dans Firestore:', savedDoc.data());
+
+      // Mettre à jour le contexte
+      setCurrentUser({
+        ...user,
+        ...userDataToStore
+      });
+      setUserType(type);
+
       return user;
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
@@ -57,8 +80,8 @@ export function AuthProvider({ children }) {
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        setUserType(userData.userType);
-        console.log('Type utilisateur défini:', userData.userType);
+        setUserType(userData.userType || userData.type);
+        console.log('Type utilisateur défini:', userData.userType || userData.type);
       } else {
         console.error('Document utilisateur non trouvé');
         throw new Error('Document utilisateur non trouvé');
@@ -87,47 +110,55 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('AuthProvider - useEffect démarré');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('État de l\'authentification changé:', user?.email);
-      
-      if (user) {
-        try {
-          if (user.email === 'admin@etancheconnect.fr') {
-            console.log('Admin détecté');
-            setUserType('admin');
-            setCurrentUser(user);
-          } else {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            console.log('Document utilisateur récupéré:', userDoc.data());
+      try {
+        if (user) {
+          console.log('Utilisateur connecté:', user.email);
+          
+          // Récupérer les données utilisateur de Firestore
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            console.log('Données utilisateur Firestore:', userData);
             
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              setUserType(userData.type || userData.userType);
-              const userInfo = {
-                ...user,
-                ...userData,
-                nomComplet: userData.nomComplet || userData.nom
-              };
-              console.log('Données utilisateur mises à jour:', userInfo);
-              setCurrentUser(userInfo);
-            } else {
-              console.error('Document utilisateur non trouvé');
-              await logout();
+            // Définir le type d'utilisateur de manière cohérente
+            const userType = userData.type || userData.userType;
+            
+            // Si aucun type n'est défini, mettre à jour le document avec un type par défaut
+            if (!userType && user.email === 'admin@etancheconnect.fr') {
+              await setDoc(userDocRef, { ...userData, type: 'admin' }, { merge: true });
+            } else if (!userType) {
+              await setDoc(userDocRef, { ...userData, type: 'particulier' }, { merge: true });
             }
+            
+            // Mettre à jour le contexte avec les données complètes
+            setCurrentUser({
+              ...user,
+              ...userData,
+              type: userType || 'particulier'
+            });
+            setUserType(userType || 'particulier');
+          } else {
+            console.error('Document utilisateur non trouvé dans Firestore');
+            setCurrentUser(user);
+            setUserType(null);
           }
-        } catch (error) {
-          console.error('Erreur lors de la récupération des données:', error);
-          await logout();
+        } else {
+          console.log('Aucun utilisateur connecté');
+          setCurrentUser(null);
+          setUserType(null);
         }
-      } else {
-        console.log('Aucun utilisateur connecté');
+      } catch (error) {
+        console.error('Erreur lors de la récupération des données:', error);
         setCurrentUser(null);
         setUserType(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
   const value = {
@@ -135,10 +166,11 @@ export function AuthProvider({ children }) {
     userType,
     signup,
     login,
-    logout
+    logout,
+    loading
   };
 
-  console.log('AuthProvider - État actuel:', { currentUser: !!currentUser, userType });
+  console.log('AuthProvider - Valeur fournie au contexte:', value);
 
   return (
     <AuthContext.Provider value={value}>

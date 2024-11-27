@@ -131,10 +131,12 @@ const DevisParticulier = () => {
             onChange={handleChange}
             required
           >
-            <option value="">Sélectionnez le type de projet</option>
-            <option value="toiture">Étanchéité toiture</option>
-            <option value="terrasse">Étanchéité terrasse</option>
-            <option value="fondation">Étanchéité fondation</option>
+            <option value="" disabled>Sélectionner le type de projet</option>
+            <option value="etancheite_toiture">Étanchéité toiture</option>
+            <option value="etancheite_terrasse">Étanchéité terrasse</option>
+            <option value="mur_enterre">Mur enterré</option>
+            <option value="garde_corps">Garde corps</option>
+            <option value="couvertine">Couvertine</option>
             <option value="autre">Autre</option>
           </select>
         </div>

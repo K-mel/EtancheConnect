@@ -44,16 +44,17 @@ const SignupProfessionnel = () => {
         siret: formData.siret,
         telephone: formData.telephone,
         adresse: formData.adresse,
-        type: 'professionnel'
+        type: 'professionnel',
+        status: 'pending'
       });
       
-      navigate('/dashboard/pro');
+      navigate('/dashboard');
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
-      setError('Échec de la création du compte');
+      setError('Erreur lors de la création du compte: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (

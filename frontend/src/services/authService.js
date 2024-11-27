@@ -16,6 +16,36 @@ import {
 } from 'firebase/storage';
 import { auth, db, storage } from '../firebase';
 
+// Fonction utilitaire pour traduire les codes d'erreur Firebase
+const getErrorMessage = (error) => {
+  switch (error.code) {
+    case 'auth/invalid-email':
+      return 'L\'adresse email est invalide.';
+    case 'auth/user-disabled':
+      return 'Ce compte a été désactivé. Veuillez contacter le support.';
+    case 'auth/user-not-found':
+      return 'Aucun compte ne correspond à cette adresse email.';
+    case 'auth/wrong-password':
+      return 'Le mot de passe est incorrect.';
+    case 'auth/email-already-in-use':
+      return 'Cette adresse email est déjà utilisée par un autre compte.';
+    case 'auth/operation-not-allowed':
+      return 'Cette opération n\'est pas autorisée.';
+    case 'auth/weak-password':
+      return 'Le mot de passe est trop faible. Il doit contenir au moins 6 caractères.';
+    case 'auth/invalid-credential':
+      return 'Les informations de connexion sont invalides. Veuillez vérifier votre email et mot de passe.';
+    case 'auth/network-request-failed':
+      return 'Erreur de connexion réseau. Veuillez vérifier votre connexion internet.';
+    case 'auth/too-many-requests':
+      return 'Trop de tentatives de connexion. Veuillez réessayer plus tard.';
+    case 'auth/requires-recent-login':
+      return 'Cette opération nécessite une connexion récente. Veuillez vous reconnecter.';
+    default:
+      return 'Une erreur s\'est produite. Veuillez réessayer.';
+  }
+};
+
 // Fonction d'inscription
 export const register = async (email, password, role, userData) => {
   let createdUser = null;
@@ -134,7 +164,10 @@ export const register = async (email, password, role, userData) => {
       }
     }
     
-    throw error;
+    throw {
+      code: error.code,
+      message: getErrorMessage(error)
+    };
   }
 };
 
@@ -154,26 +187,35 @@ export const login = async (email, password) => {
     }
 
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    const user = userCredential.user;
+    
+    // Récupérer les données utilisateur supplémentaires depuis Firestore
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      // Stocker les données utilisateur dans le localStorage
+      localStorage.setItem('userData', JSON.stringify({
+        ...userData,
+        uid: user.uid,
+        email: user.email
+      }));
+      return {
+        user,
+        userData
+      };
+    } else {
+      throw new Error('Données utilisateur non trouvées');
+    }
   } catch (error) {
     console.error('Erreur de connexion:', {
       code: error.code,
       message: error.message
     });
     
-    // Traduction des erreurs Firebase courantes
-    switch (error.code) {
-      case 'auth/user-not-found':
-        throw new Error('Aucun compte ne correspond à cet email');
-      case 'auth/wrong-password':
-        throw new Error('Mot de passe incorrect');
-      case 'auth/invalid-email':
-        throw new Error('Format d\'email invalide');
-      case 'auth/user-disabled':
-        throw new Error('Ce compte a été désactivé');
-      default:
-        throw error;
-    }
+    throw {
+      code: error.code,
+      message: getErrorMessage(error)
+    };
   }
 };
 
@@ -181,7 +223,11 @@ export const login = async (email, password) => {
 export const logout = async () => {
   try {
     await signOut(auth);
+    // Nettoyer les données locales si nécessaire
+    localStorage.removeItem('userData');
+    return true;
   } catch (error) {
+    console.error('Erreur lors de la déconnexion:', error);
     throw error;
   }
 };
@@ -190,8 +236,15 @@ export const logout = async () => {
 export const resetPassword = async (email) => {
   try {
     await sendPasswordResetEmail(auth, email);
+    return {
+      success: true,
+      message: 'Un email de réinitialisation a été envoyé à votre adresse email.'
+    };
   } catch (error) {
-    throw error;
+    throw {
+      code: error.code,
+      message: getErrorMessage(error)
+    };
   }
 };
 
@@ -230,6 +283,21 @@ export const updateUserProfile = async (userId, userData) => {
   }
 };
 
+// Fonction pour promouvoir un utilisateur en administrateur
+export const promoteToAdmin = async (userId) => {
+  try {
+    await setDoc(doc(db, 'users', userId), {
+      role: 'administrateur',
+      isAdmin: true,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la promotion en administrateur:', error);
+    throw error;
+  }
+};
+
 const authService = {
   register,
   login,
@@ -237,7 +305,8 @@ const authService = {
   resetPassword,
   getUserData,
   getUserRole,
-  updateUserProfile
+  updateUserProfile,
+  promoteToAdmin
 };
 
 export default authService;
