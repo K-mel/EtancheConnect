@@ -135,9 +135,10 @@
 .dashboard-content {
   flex: 1;
   background: #f4f6f9;
-  margin-left: 280px; /* Correspond à la largeur de la sidebar */
+  margin-left: 280px;
   min-height: calc(100vh - 60px);
-  position: relative;
+  padding: 2rem;
+  overflow-y: auto;
 }
 
 .dashboard-header {
@@ -153,16 +154,16 @@
 }
 
 .central-content {
-  overflow: hidden; /* Bloque uniquement le défilement dans cette section */
-  height: calc(100vh - 180px); /* Ajuster la hauteur selon vos besoins */
+  height: auto;
+  overflow: visible;
   padding: 2rem;
 }
 
 .apercu-content,
 .profile-container,
 .messages-content {
-  height: 100%;
-  overflow: hidden; /* Bloque le défilement dans les contenus spécifiques */
+  height: auto;
+  overflow: visible;
   background: white;
   border-radius: 15px;
   padding: 2rem;
@@ -418,12 +419,14 @@ td {
   margin: 0;
 }
 
-/* Styles pour le profil */
+/* Profile Styles */
 .profile-container {
   background: white;
   border-radius: 15px;
   padding: 2rem;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  height: auto;
+  margin-bottom: 2rem;
 }
 
 .profile-header {
@@ -432,7 +435,7 @@ td {
   gap: 2rem;
   margin-bottom: 2rem;
   padding-bottom: 2rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #e6e9ee;
 }
 
 .profile-avatar {
@@ -455,58 +458,99 @@ td {
 }
 
 .profile-info p {
-  margin: 0.5rem 0 0;
+  margin: 0.5rem 0;
   color: #7f8c8d;
 }
 
-.profile-details form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.profile-info .status {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background-color: #f1c40f;
+  color: white;
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+
+.profile-details {
+  padding: 1rem 0;
 }
 
 .form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
   color: #2c3e50;
   font-weight: 500;
 }
 
 .form-group input,
 .form-group textarea {
-  padding: 0.8rem;
-  border: 1px solid #ddd;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e6e9ee;
   border-radius: 8px;
   font-size: 1rem;
-  transition: all 0.3s ease;
+  transition: border-color 0.3s ease;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
-  border-color: #3498db;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  border-color: #3498db;
 }
 
-.form-group input:read-only,
-.form-group textarea:read-only {
+.form-group input[readonly],
+.form-group textarea[readonly] {
   background-color: #f8f9fa;
   cursor: not-allowed;
 }
 
-.form-group textarea {
-  min-height: 100px;
-  resize: vertical;
+.documents-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e6e9ee;
+}
+
+.documents-section h3 {
+  color: #2c3e50;
+  margin-bottom: 1.5rem;
+}
+
+.document-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.document-item label {
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.document-item a {
+  color: #3498db;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  background-color: rgba(52, 152, 219, 0.1);
+  border-radius: 20px;
+  transition: background-color 0.3s ease;
+}
+
+.document-item a:hover {
+  background-color: rgba(52, 152, 219, 0.2);
 }
 
 .edit-button,
 .save-button,
 .cancel-button {
-  padding: 0.8rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -518,6 +562,7 @@ td {
   background-color: #3498db;
   color: white;
   width: 100%;
+  margin-top: 2rem;
 }
 
 .edit-button:hover {
@@ -527,6 +572,7 @@ td {
 .button-group {
   display: flex;
   gap: 1rem;
+  margin-top: 2rem;
 }
 
 .save-button {
@@ -553,26 +599,27 @@ td {
 .success-message {
   padding: 1rem;
   border-radius: 8px;
-  margin-bottom: 1rem;
-  text-align: center;
+  margin-bottom: 1.5rem;
 }
 
 .error-message {
-  background-color: #fdecea;
-  color: #c0392b;
-  border: 1px solid #fadbd8;
+  background-color: #fde8e8;
+  color: #e74c3c;
+  border: 1px solid #fbd5d5;
 }
 
 .success-message {
-  background-color: #eafaf1;
-  color: #27ae60;
-  border: 1px solid #d5f5e3;
+  background-color: #e8f8f5;
+  color: #2ecc71;
+  border: 1px solid #d1f2eb;
 }
 
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: #7f8c8d;
+.dashboard-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  height: calc(100vh - 60px); /* Hauteur de la fenêtre moins la hauteur de la navbar */
+  overflow-y: auto; /* Permet le défilement vertical */
 }
 
 /* Media Queries pour la responsivité */
