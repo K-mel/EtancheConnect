@@ -1,0 +1,159 @@
+.messages-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.messages-header {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.messages-header h2 {
+  color: #1a237e;
+  margin: 0 0 10px 0;
+  font-size: 1.8rem;
+}
+
+.messages-header p {
+  color: #666;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.messages-list {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.message-item {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.3s ease;
+}
+
+.message-item:last-child {
+  border-bottom: none;
+}
+
+.message-item:hover {
+  background-color: #f8f9fa;
+}
+
+.message-item.unread {
+  background-color: #e8eaf6;
+}
+
+.message-item.unread:hover {
+  background-color: #e3e5f1;
+}
+
+.message-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20px;
+  color: #1a237e;
+  font-size: 1.2rem;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.message-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.message-date {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.message-sender {
+  color: #1a237e;
+  margin: 0 0 5px 0;
+  font-size: 0.95rem;
+}
+
+.message-preview {
+  color: #666;
+  margin: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: 20px;
+}
+
+.action-button {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #666;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+}
+
+.action-button:hover {
+  background-color: rgba(0,0,0,0.1);
+  color: #1a237e;
+}
+
+.action-button.reply:hover {
+  color: #2196f3;
+}
+
+.action-button.delete:hover {
+  color: #f44336;
+}
+
+.no-messages {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+}
+
+.no-messages svg {
+  color: #1a237e;
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+.no-messages p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.messages-loading {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 1.1rem;
+}

@@ -1,78 +1,224 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import './Dashboard.css';
-import { FaProjectDiagram, FaTools, FaCheckCircle, FaFileAlt, FaEnvelope, FaUserTie, FaUsers, FaFileContract, FaUserClock, FaPlus, FaFileInvoice, FaUserCheck } from 'react-icons/fa';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  getDocs, 
+  doc, 
+  getDoc,
+  updateDoc,
+  addDoc,
+  setDoc,
+  Timestamp 
+} from 'firebase/firestore';
+import { 
+  FaPlus, 
+  FaProjectDiagram, 
+  FaTools, 
+  FaCheckCircle, 
+  FaFileAlt, 
+  FaEnvelope, 
+  FaUserTie, 
+  FaUsers, 
+  FaFileContract, 
+  FaUserClock, 
+  FaFileInvoice,
+  FaUserCheck,
+  FaUserTimes,
+  FaChartBar,
+  FaClock,
+  FaPhone,
+  FaCheck,
+  FaTimes,
+  FaEye
+} from 'react-icons/fa';
+import DevisList from './DevisList';
+import '../../styles/dashboard.css';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('apercu');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userRole, setUserRole] = useState(null);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!currentUser) {
       navigate('/');
+    } else {
+      // Récupérer le rôle de l'utilisateur depuis Firestore
+      const fetchUserRole = async () => {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            setUserRole(userDoc.data().role);
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération du rôle:', error);
+        }
+      };
+      fetchUserRole();
     }
   }, [currentUser, navigate]);
 
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/'); // Redirection vers la page d'accueil
+      navigate('/');
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
     }
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'apercu':
-        return <AperçuContent />;
-      case 'devis':
-        return <DevisContent />;
-      case 'messages':
-        return <MessagesContent />;
-      case 'profile':
-        return <ProfileContent />;
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setIsSidebarOpen(false);
+  };
+
+  // Navigation items en fonction du rôle
+  const getNavigationItems = () => {
+    const baseItems = [
+      {
+        id: 'apercu',
+        label: 'Aperçu',
+        icon: <FaProjectDiagram />
+      }
+    ];
+
+    switch (userRole) {
+      case 'particulier':
+        return [
+          ...baseItems,
+          {
+            id: 'devis',
+            label: 'Mes Devis',
+            icon: <FaFileAlt />
+          },
+          {
+            id: 'messages',
+            label: 'Messages',
+            icon: <FaEnvelope />
+          },
+          {
+            id: 'profile',
+            label: 'Mon Profil',
+            icon: <FaUsers />
+          }
+        ];
+
+      case 'professionnel':
+        return [
+          ...baseItems,
+          {
+            id: 'devis',
+            label: 'Devis Reçus',
+            icon: <FaFileAlt />
+          },
+          {
+            id: 'projets',
+            label: 'Mes Projets',
+            icon: <FaTools />
+          },
+          {
+            id: 'messages',
+            label: 'Messages',
+            icon: <FaEnvelope />
+          },
+          {
+            id: 'profile',
+            label: 'Mon Profil',
+            icon: <FaUserTie />
+          }
+        ];
+
+      case 'administrateur':
+        return [
+          ...baseItems,
+          {
+            id: 'utilisateurs',
+            label: 'Utilisateurs',
+            icon: <FaUsers />
+          },
+          {
+            id: 'validations',
+            label: 'Validations',
+            icon: <FaUserCheck />
+          },
+          {
+            id: 'statistiques',
+            label: 'Statistiques',
+            icon: <FaProjectDiagram />
+          },
+          {
+            id: 'profile',
+            label: 'Mon Profil',
+            icon: <FaUserTie />
+          }
+        ];
+
       default:
-        return <AperçuContent />;
+        return baseItems;
     }
   };
 
+  const renderContent = () => {
+    if (!userRole) return <div>Chargement...</div>;
+
+    switch (activeTab) {
+      case 'apercu':
+        return <AperçuContent userRole={userRole} />;
+      case 'devis':
+        return <DevisContent />;
+      case 'messages':
+        return <MessagesContent userRole={userRole} />;
+      case 'projets':
+        return <ProjetsContent />;
+      case 'utilisateurs':
+        return <UtilisateursContent />;
+      case 'validations':
+        return <ValidationsContent />;
+      case 'statistiques':
+        return <StatistiquesContent />;
+      case 'profile':
+        return <ProfileContent userRole={userRole} />;
+      default:
+        return <AperçuContent userRole={userRole} />;
+    }
+  };
+
+  if (!userRole) {
+    return <div className="loading">Chargement...</div>;
+  }
+
   return (
     <div className="dashboard">
-      <div className="sidebar">
+      <button className="mobile-menu-button" onClick={toggleSidebar}>
+        <FaProjectDiagram />
+      </button>
+
+      <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h2>EtancheConnect</h2>
+          <div className="role-badge">{userRole}</div>
         </div>
         <nav className="sidebar-nav">
           <ul>
-            <li className={activeTab === 'apercu' ? 'active' : ''}>
-              <button onClick={() => setActiveTab('apercu')}>
-                <span className="icon">📊</span>
-                Aperçu
-              </button>
-            </li>
-            <li className={activeTab === 'devis' ? 'active' : ''}>
-              <button onClick={() => setActiveTab('devis')}>
-                <span className="icon">📝</span>
-                Devis
-              </button>
-            </li>
-            <li className={activeTab === 'messages' ? 'active' : ''}>
-              <button onClick={() => setActiveTab('messages')}>
-                <span className="icon">✉️</span>
-                Messages
-              </button>
-            </li>
-            <li className={activeTab === 'profile' ? 'active' : ''}>
-              <button onClick={() => setActiveTab('profile')}>
-                <span className="icon">👤</span>
-                Profile
-              </button>
-            </li>
+            {getNavigationItems().map((item) => (
+              <li key={item.id} className={activeTab === item.id ? 'active' : ''}>
+                <button onClick={() => handleTabChange(item.id)}>
+                  <span className="icon">{item.icon}</span>
+                  {item.label}
+                </button>
+              </li>
+            ))}
           </ul>
         </nav>
         <div className="sidebar-footer">
@@ -87,413 +233,741 @@ const Dashboard = () => {
         <div className="content-header">
           <h1>
             {activeTab === 'apercu' && 'Tableau de bord'}
-            {activeTab === 'devis' && 'Gestion des devis'}
+            {activeTab === 'devis' && (userRole === 'particulier' ? 'Mes Devis' : 'Devis Reçus')}
             {activeTab === 'messages' && 'Messagerie'}
-            {activeTab === 'profile' && 'Mon profil'}
+            {activeTab === 'projets' && 'Mes Projets'}
+            {activeTab === 'utilisateurs' && 'Gestion des Utilisateurs'}
+            {activeTab === 'validations' && 'Validations en Attente'}
+            {activeTab === 'statistiques' && 'Statistiques Globales'}
+            {activeTab === 'profile' && 'Mon Profil'}
           </h1>
         </div>
-        <div className="content-body">
-          {renderContent()}
+        {renderContent()}
+      </div>
+    </div>
+  );
+};
+
+// Composants pour les professionnels
+const ProjetsContent = () => {
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const projectsRef = collection(db, 'projects');
+        const projectsSnap = await getDocs(projectsRef);
+        const projectsData = projectsSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setProjects(projectsData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des projets:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  if (loading) {
+    return <div className="loading">Chargement des projets...</div>;
+  }
+
+  return (
+    <div className="project-grid">
+      {projects.map(project => (
+        <div key={project.id} className="project-card">
+          <h3>{project.title}</h3>
+          <div className="project-details">
+            <p><strong>Client:</strong> {project.clientName}</p>
+            <p><strong>Status:</strong> {project.status}</p>
+            <p><strong>Budget:</strong> {project.budget}€</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Composants pour les administrateurs
+const UtilisateursContent = () => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const usersSnap = await getDocs(usersRef);
+        const usersData = usersSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setUsers(usersData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des utilisateurs:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case 'administrateur':
+        return 'admin';
+      case 'professionnel':
+        return 'pro';
+      default:
+        return 'user';
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Chargement des utilisateurs...</div>;
+  }
+
+  return (
+    <div className="admin-dashboard">
+      <div className="users-grid">
+        {users.map(user => (
+          <div key={user.id} className="user-card">
+            <h3>
+              <FaUserTie className="user-icon" />
+              {user.displayName || 'Utilisateur'}
+            </h3>
+            <p>
+              <FaEnvelope />
+              {user.email}
+            </p>
+            <p>
+              <FaUserCheck />
+              <span className={`user-role ${getRoleBadgeClass(user.role)}`}>
+                {user.role}
+              </span>
+            </p>
+            {user.phoneNumber && (
+              <p>
+                <FaPhone />
+                {user.phoneNumber}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ValidationsContent = () => {
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPendingUsers = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('status', '==', 'pending'));
+        const pendingSnap = await getDocs(q);
+        const pendingData = pendingSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setPendingUsers(pendingData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des utilisateurs en attente:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchPendingUsers();
+  }, []);
+
+  const handleValidation = async (userId, action) => {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        status: action === 'validate' ? 'validated' : 'rejected',
+        updatedAt: new Date().toISOString()
+      });
+      
+      // Mettre à jour la liste
+      setPendingUsers(prev => prev.filter(user => user.id !== userId));
+    } catch (error) {
+      console.error('Erreur lors de la validation:', error);
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Chargement des validations...</div>;
+  }
+
+  return (
+    <div className="admin-dashboard">
+      <div className="validations-grid">
+        {pendingUsers.map(user => (
+          <div key={user.id} className="validation-card">
+            <h3>
+              <FaUserClock />
+              {user.displayName || 'Professionnel'}
+            </h3>
+            <p>
+              <FaEnvelope />
+              {user.email}
+            </p>
+            <p>
+              <FaClock />
+              <span className="status-badge status-pending">
+                En attente
+              </span>
+            </p>
+            <div className="validation-actions">
+              <button
+                className="btn-validate"
+                onClick={() => handleValidation(user.id, 'validate')}
+              >
+                <FaCheck /> Valider
+              </button>
+              <button
+                className="btn-reject"
+                onClick={() => handleValidation(user.id, 'reject')}
+              >
+                <FaTimes /> Refuser
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const StatistiquesContent = () => {
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalProfessionals: 0,
+    totalProjects: 0,
+    totalQuotes: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const projectsRef = collection(db, 'projects');
+        const quotesRef = collection(db, 'quotes');
+
+        const [usersSnap, projectsSnap, quotesSnap] = await Promise.all([
+          getDocs(usersRef),
+          getDocs(projectsRef),
+          getDocs(quotesRef)
+        ]);
+
+        const professionals = usersSnap.docs.filter(doc => doc.data().role === 'professionnel');
+
+        setStats({
+          totalUsers: usersSnap.size,
+          totalProfessionals: professionals.length,
+          totalProjects: projectsSnap.size,
+          totalQuotes: quotesSnap.size
+        });
+        setLoading(false);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des statistiques:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return <div className="loading">Chargement des statistiques...</div>;
+  }
+
+  return (
+    <div className="admin-dashboard">
+      <div className="stats-grid">
+        <div className="stat-card">
+          <FaUsers className="stat-icon" />
+          <h3>Utilisateurs Total</h3>
+          <div className="stat-value">{stats.totalUsers}</div>
+        </div>
+        <div className="stat-card">
+          <FaUserTie className="stat-icon" />
+          <h3>Professionnels</h3>
+          <div className="stat-value">{stats.totalProfessionals}</div>
+        </div>
+        <div className="stat-card">
+          <FaProjectDiagram className="stat-icon" />
+          <h3>Projets</h3>
+          <div className="stat-value">{stats.totalProjects}</div>
+        </div>
+        <div className="stat-card">
+          <FaFileContract className="stat-icon" />
+          <h3>Devis</h3>
+          <div className="stat-value">{stats.totalQuotes}</div>
         </div>
       </div>
     </div>
   );
 };
 
-const AperçuContent = () => {
-  const { currentUser } = useAuth();
-  const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
+const AperçuContent = ({ userRole }) => {
   const [stats, setStats] = useState({
-    totalProjects: 0,
-    activeProjects: 0,
-    completedProjects: 0,
-    pendingQuotes: 0,
-    userQuotes: 0,
-    userActiveProjects: 0,
-    userCompletedProjects: 0,
-    unreadMessages: 0,
-    totalProfessionals: 0,
-    totalIndividuals: 0,
-    totalQuotes: 0,
-    pendingValidations: 0
+    devis: 0,
+    projets: 0,
+    messages: 0,
+    contacts: 0
   });
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (currentUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data());
-          }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-        }
-      }
-    };
-
-    fetchUserData();
-  }, [currentUser]);
+  const [recentItems, setRecentItems] = useState({
+    devis: [],
+    projets: [],
+    messages: []
+  });
+  const { currentUser } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchStats = async () => {
-      if (!currentUser || !userData) return;
+      if (!currentUser) {
+        setLoading(false);
+        return;
+      }
 
       try {
-        switch (userData.role) {
-          case 'professionnel':
-            const projectsRef = collection(db, 'projects');
-            const projectsQuery = query(
-              projectsRef,
-              where('professionalId', '==', currentUser.uid)
-            );
-            const projectsSnapshot = await getDocs(projectsQuery);
-
-            let active = 0;
-            let completed = 0;
-
-            projectsSnapshot.forEach((doc) => {
-              const project = doc.data();
-              if (project.status === 'completed') {
-                completed++;
-              } else {
-                active++;
-              }
-            });
-
-            // Fetch pending quotes
-            const quotesRef = collection(db, 'quotes');
-            const quotesQuery = query(
-              quotesRef,
-              where('professionalId', '==', currentUser.uid),
-              where('status', '==', 'pending')
-            );
-            const quotesSnapshot = await getDocs(quotesQuery);
-
-            setStats({
-              totalProjects: projectsSnapshot.size,
-              activeProjects: active,
-              completedProjects: completed,
-              pendingQuotes: quotesSnapshot.size
-            });
-            break;
-
-          case 'particulier':
-            // Récupérer les devis de l'utilisateur
-            const userQuotesQuery = query(
-              collection(db, 'quotes'),
-              where('userId', '==', currentUser.uid)
-            );
-            const userQuotesSnapshot = await getDocs(userQuotesQuery);
-
-            // Récupérer les projets de l'utilisateur
-            const userProjectsQuery = query(
-              collection(db, 'projects'),
-              where('userId', '==', currentUser.uid)
-            );
-            const userProjectsSnapshot = await getDocs(userProjectsQuery);
-
-            let userActiveProjects = 0;
-            let userCompletedProjects = 0;
-
-            userProjectsSnapshot.forEach((doc) => {
-              const project = doc.data();
-              if (project.status === 'completed') {
-                userCompletedProjects++;
-              } else {
-                userActiveProjects++;
-              }
-            });
-
-            // Récupérer les messages non lus
-            const messagesQuery = query(
-              collection(db, 'messages'),
-              where('recipientId', '==', currentUser.uid),
-              where('read', '==', false)
-            );
-            const unreadMessagesSnapshot = await getDocs(messagesQuery);
-
-            setStats({
-              userQuotes: userQuotesSnapshot.size,
-              userActiveProjects,
-              userCompletedProjects,
-              unreadMessages: unreadMessagesSnapshot.size
-            });
-            break;
-
-          case 'administrateur':
-            // Compter le nombre total de professionnels
-            const proQuery = query(
-              collection(db, 'users'),
-              where('role', '==', 'professionnel')
-            );
-            const proSnapshot = await getDocs(proQuery);
-
-            // Compter le nombre total de particuliers
-            const particQuery = query(
-              collection(db, 'users'),
-              where('role', '==', 'particulier')
-            );
-            const particSnapshot = await getDocs(particQuery);
-
-            // Compter le nombre total de devis en cours
-            const activeQuotesQuery = query(
-              collection(db, 'quotes'),
-              where('status', '==', 'pending')
-            );
-            const activeQuotesSnapshot = await getDocs(activeQuotesQuery);
-
-            // Compter le nombre de professionnels en attente de validation
-            const pendingProQuery = query(
-              collection(db, 'users'),
-              where('role', '==', 'professionnel'),
-              where('validated', '==', false)
-            );
-            const pendingProSnapshot = await getDocs(pendingProQuery);
-
-            setStats({
-              totalProfessionals: proSnapshot.size,
-              totalIndividuals: particSnapshot.size,
-              totalQuotes: activeQuotesSnapshot.size,
-              pendingValidations: pendingProSnapshot.size
-            });
-            break;
+        // Récupérer le rôle de l'utilisateur
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        const userData = userDoc.data();
+        
+        // Construire les requêtes en fonction du rôle
+        let devisQuery, projetsQuery;
+        
+        if (userData.role === 'administrateur') {
+          // Les administrateurs voient tout
+          devisQuery = query(collection(db, 'devis'));
+          projetsQuery = query(collection(db, 'projects'));
+        } else if (userData.role === 'professionnel') {
+          // Les professionnels voient les devis et projets qui leur sont assignés
+          devisQuery = query(collection(db, 'devis'), 
+            where('professionalId', '==', currentUser.uid));
+          projetsQuery = query(collection(db, 'projects'), 
+            where('professionalId', '==', currentUser.uid));
+        } else {
+          // Les particuliers voient leurs propres devis et projets
+          devisQuery = query(collection(db, 'devis'), 
+            where('userId', '==', currentUser.uid));
+          projetsQuery = query(collection(db, 'projects'), 
+            where('userId', '==', currentUser.uid));
         }
+
+        // Requêtes pour les messages et contacts
+        const messagesQuery = query(collection(db, 'messages'), 
+          where('participants', 'array-contains', currentUser.uid));
+        const contactsQuery = query(collection(db, 'contacts'), 
+          where('userId', '==', currentUser.uid));
+
+        // Exécuter les requêtes en groupes pour éviter les timeouts
+        const [devisSnap, projetsSnap] = await Promise.all([
+          getDocs(devisQuery),
+          getDocs(projetsQuery)
+        ]);
+
+        const [messagesSnap, contactsSnap] = await Promise.all([
+          getDocs(messagesQuery),
+          getDocs(contactsQuery)
+        ]);
+
+        setStats({
+          devis: devisSnap.size,
+          projets: projetsSnap.size,
+          messages: messagesSnap.size,
+          contacts: contactsSnap.size
+        });
+
+        // Récupérer les éléments récents avec les informations complètes
+        const recentDevis = await Promise.all(
+          devisSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
+            .slice(0, 3)
+            .map(async (devis) => {
+              if (devis.professionalId) {
+                try {
+                  const proDoc = await getDoc(doc(db, 'users', devis.professionalId));
+                  if (proDoc.exists()) {
+                    devis.professionnel = proDoc.data();
+                  }
+                } catch (error) {
+                  console.error('Erreur lors de la récupération du professionnel:', error);
+                }
+              }
+              return devis;
+            })
+        );
+
+        const recentProjets = projetsSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
+          .slice(0, 3);
+
+        const recentMessages = messagesSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0))
+          .slice(0, 3);
+
+        setRecentItems({
+          devis: recentDevis,
+          projets: recentProjets,
+          messages: recentMessages
+        });
+
+        setError(null);
       } catch (error) {
-        console.error("Error fetching stats:", error);
+        console.error("Erreur lors de la récupération des statistiques:", error);
+        setError("Impossible de charger les statistiques. Veuillez réessayer plus tard.");
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchStats();
-  }, [currentUser, userData]);
+  }, [currentUser]);
 
-  const renderProfessionalStats = () => (
-    <div className="stats-grid">
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaProjectDiagram />
-        </div>
-        <div className="stat-content">
-          <h3>Total des Projets</h3>
-          <div className="stat-number">{stats.totalProjects || 0}</div>
-          <p className="stat-description">Projets en cours et terminés</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaTools />
-        </div>
-        <div className="stat-content">
-          <h3>Projets Actifs</h3>
-          <div className="stat-number">{stats.activeProjects || 0}</div>
-          <p className="stat-description">Projets en cours de réalisation</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaCheckCircle />
-        </div>
-        <div className="stat-content">
-          <h3>Projets Terminés</h3>
-          <div className="stat-number">{stats.completedProjects || 0}</div>
-          <p className="stat-description">Projets achevés avec succès</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaFileAlt />
-        </div>
-        <div className="stat-content">
-          <h3>Devis en Attente</h3>
-          <div className="stat-number">{stats.pendingQuotes || 0}</div>
-          <p className="stat-description">Devis à traiter</p>
-        </div>
-      </div>
-    </div>
-  );
+  if (loading) {
+    return <div className="loading-spinner">Chargement des statistiques...</div>;
+  }
 
-  const renderIndividualStats = () => (
-    <div className="stats-grid">
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaFileInvoice />
-        </div>
-        <div className="stat-content">
-          <h3>Mes Devis</h3>
-          <div className="stat-number">{stats.userQuotes || 0}</div>
-          <p className="stat-description">Devis en cours</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaTools />
-        </div>
-        <div className="stat-content">
-          <h3>Projets en Cours</h3>
-          <div className="stat-number">{stats.userActiveProjects || 0}</div>
-          <p className="stat-description">Travaux en cours de réalisation</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaCheckCircle />
-        </div>
-        <div className="stat-content">
-          <h3>Projets Terminés</h3>
-          <div className="stat-number">{stats.userCompletedProjects || 0}</div>
-          <p className="stat-description">Projets achevés</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaEnvelope />
-        </div>
-        <div className="stat-content">
-          <h3>Messages Non Lus</h3>
-          <div className="stat-number">{stats.unreadMessages || 0}</div>
-          <p className="stat-description">Messages à consulter</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAdminStats = () => (
-    <div className="stats-grid">
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaUserTie />
-        </div>
-        <div className="stat-content">
-          <h3>Professionnels</h3>
-          <div className="stat-number">{stats.totalProfessionals || 0}</div>
-          <p className="stat-description">Professionnels inscrits</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaUsers />
-        </div>
-        <div className="stat-content">
-          <h3>Particuliers</h3>
-          <div className="stat-number">{stats.totalIndividuals || 0}</div>
-          <p className="stat-description">Clients inscrits</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaFileContract />
-        </div>
-        <div className="stat-content">
-          <h3>Devis en Cours</h3>
-          <div className="stat-number">{stats.totalQuotes || 0}</div>
-          <p className="stat-description">Devis actifs</p>
-        </div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-icon">
-          <FaUserClock />
-        </div>
-        <div className="stat-content">
-          <h3>En Attente de Validation</h3>
-          <div className="stat-number">{stats.pendingValidations || 0}</div>
-          <p className="stat-description">Professionnels à valider</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (!userData) {
-    return <div>Chargement...</div>;
+  if (error) {
+    return <div className="error-message">{error}</div>;
   }
 
   return (
-    <div className="apercu-content">
-      <div className="welcome-section">
-        <h2>Bienvenue, {userData.displayName || 'Utilisateur'}</h2>
-        <p>
-          {userData.role === 'professionnel'
-            ? 'Gérez vos projets et devis en cours'
-            : userData.role === 'administrateur'
-            ? 'Supervisez l\'activité de la plateforme'
-            : 'Suivez l\'avancement de vos projets'}
-        </p>
+    <div className="dashboard-container">
+      <div className="overview-container">
+        <div className="stat-card">
+          <div className="stat-header">
+            <FaFileAlt />
+            <h3 className="stat-title">Devis</h3>
+          </div>
+          <div className="stat-value">{stats.devis}</div>
+          <p className="stat-description">Devis en cours</p>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-header">
+            <FaProjectDiagram />
+            <h3 className="stat-title">Projets</h3>
+          </div>
+          <div className="stat-value">{stats.projets}</div>
+          <p className="stat-description">Projets actifs</p>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-header">
+            <FaEnvelope />
+            <h3 className="stat-title">Messages</h3>
+          </div>
+          <div className="stat-value">{stats.messages}</div>
+          <p className="stat-description">Messages non lus</p>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-header">
+            <FaUsers />
+            <h3 className="stat-title">Contacts</h3>
+          </div>
+          <div className="stat-value">{stats.contacts}</div>
+          <p className="stat-description">Contacts actifs</p>
+        </div>
       </div>
 
-      {userData.role === 'professionnel' && renderProfessionalStats()}
-      {userData.role === 'particulier' && renderIndividualStats()}
-      {userData.role === 'administrateur' && renderAdminStats()}
+      <div className="recent-sections">
+        <div className="recent-section">
+          <div className="recent-section-header">
+            <h3 className="recent-section-title">
+              <FaFileAlt />
+              Devis récents
+            </h3>
+            <button className="view-all-button" onClick={() => navigate('/devis')}>
+              Voir tout
+            </button>
+          </div>
+          {recentItems.devis.map(devis => (
+            <div key={devis.id} className="recent-item">
+              <div className="recent-item-header">
+                <h4 className="recent-item-title">{devis.title || 'Sans titre'}</h4>
+                <span className="recent-item-date">
+                  {new Date(devis.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="recent-item-description">
+                {devis.description?.substring(0, 100)}
+                {devis.description?.length > 100 ? '...' : ''}
+              </p>
+            </div>
+          ))}
+        </div>
 
-      <div className="action-section">
-        {userData.role === 'professionnel' && (
-          <div className="action-buttons">
-            <button className="action-button" onClick={() => navigate('/quotes')}>
-              <FaFileAlt className="button-icon" />
-              Voir les devis en attente
-            </button>
-            <button className="action-button" onClick={() => navigate('/projects')}>
-              <FaProjectDiagram className="button-icon" />
-              Gérer mes projets
+        <div className="recent-section">
+          <div className="recent-section-header">
+            <h3 className="recent-section-title">
+              <FaProjectDiagram />
+              Projets récents
+            </h3>
+            <button className="view-all-button" onClick={() => navigate('/projets')}>
+              Voir tout
             </button>
           </div>
-        )}
-        {userData.role === 'particulier' && (
-          <div className="action-buttons">
-            <button className="action-button" onClick={() => navigate('/devis/particulier')}>
-              <FaPlus className="button-icon" />
-              Nouveau devis
-            </button>
-            <button className="action-button" onClick={() => navigate('/messages')}>
-              <FaEnvelope className="button-icon" />
-              Voir mes messages
+          {recentItems.projets.map(projet => (
+            <div key={projet.id} className="recent-item">
+              <div className="recent-item-header">
+                <h4 className="recent-item-title">{projet.title || 'Sans titre'}</h4>
+                <span className="recent-item-date">
+                  {new Date(projet.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="recent-item-description">
+                {projet.description?.substring(0, 100)}
+                {projet.description?.length > 100 ? '...' : ''}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="recent-section">
+          <div className="recent-section-header">
+            <h3 className="recent-section-title">
+              <FaEnvelope />
+              Messages récents
+            </h3>
+            <button className="view-all-button" onClick={() => navigate('/messages')}>
+              Voir tout
             </button>
           </div>
-        )}
-        {userData.role === 'administrateur' && (
-          <div className="action-buttons">
-            <button className="action-button" onClick={() => navigate('/admin/validations')}>
-              <FaUserCheck className="button-icon" />
-              Valider les professionnels
-            </button>
-            <button className="action-button" onClick={() => navigate('/admin/users')}>
-              <FaUsers className="button-icon" />
-              Gérer les utilisateurs
-            </button>
-          </div>
-        )}
+          {recentItems.messages.map(message => (
+            <div key={message.id} className="recent-item">
+              <div className="recent-item-header">
+                <h4 className="recent-item-title">
+                  {message.subject || 'Sans objet'}
+                </h4>
+                <span className="recent-item-date">
+                  {new Date(message.timestamp).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="recent-item-description">
+                {message.content?.substring(0, 100)}
+                {message.content?.length > 100 ? '...' : ''}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 };
 
 const DevisContent = () => {
+  const { currentUser } = useAuth();
+  const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!currentUser) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data().role);
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error("Erreur lors de la récupération du rôle:", error);
+        setError(error.message);
+        setLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [currentUser]);
+
+  if (loading) return <div>Chargement...</div>;
+  if (error) return <div>Erreur: {error}</div>;
+  if (!userRole) return <div>Rôle non trouvé</div>;
+
+  return <DevisList userType={userRole} />;
+};
+
+const MessagesContent = ({ userRole }) => {
+  const { currentUser } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [users, setUsers] = useState({});
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!currentUser) return;
+
+      try {
+        const messagesRef = collection(db, 'messages');
+        const q = query(
+          messagesRef,
+          where('participants', 'array-contains', currentUser.uid),
+          orderBy('timestamp', 'desc')
+        );
+
+        const querySnapshot = await getDocs(q);
+        const messagesList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        setMessages(messagesList);
+        setLoading(false);
+
+        // Récupérer les informations des utilisateurs
+        const userIds = new Set();
+        messagesList.forEach(msg => {
+          userIds.add(msg.senderId);
+          userIds.add(msg.recipientId);
+        });
+
+        const usersData = {};
+        for (const userId of userIds) {
+          if (userId !== currentUser.uid) {
+            const userDoc = await getDoc(doc(db, 'users', userId));
+            if (userDoc.exists()) {
+              usersData[userId] = userDoc.data();
+            }
+          }
+        }
+        setUsers(usersData);
+      } catch (error) {
+        console.error("Erreur lors de la récupération des messages:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [currentUser]);
+
+  const sendMessage = async (recipientId) => {
+    if (!newMessage.trim() || !currentUser || !recipientId) return;
+
+    try {
+      const messagesRef = collection(db, 'messages');
+      const newMessageData = {
+        content: newMessage.trim(),
+        senderId: currentUser.uid,
+        recipientId: recipientId,
+        timestamp: new Date().toISOString(),
+        read: false,
+        participants: [currentUser.uid, recipientId]
+      };
+
+      await addDoc(messagesRef, newMessageData);
+      setNewMessage('');
+      // Rafraîchir la liste des messages
+      const updatedMessages = [...messages, { ...newMessageData, id: Date.now().toString() }];
+      setMessages(updatedMessages);
+    } catch (error) {
+      console.error("Erreur lors de l'envoi du message:", error);
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Chargement des messages...</div>;
+  }
+
   return (
-    <div>
-      <h2>Devis</h2>
-      {/* Contenu pour la gestion des devis */}
+    <div className="messages-container">
+      <div className="messages-list">
+        <h3>Conversations</h3>
+        {messages.length === 0 ? (
+          <div className="no-messages">
+            <p>Aucun message</p>
+          </div>
+        ) : (
+          messages.map((message) => {
+            const otherUserId = message.senderId === currentUser.uid ? message.recipientId : message.senderId;
+            const otherUser = users[otherUserId];
+            
+            return (
+              <div
+                key={message.id}
+                className={`message-preview ${selectedMessage?.id === message.id ? 'selected' : ''}`}
+                onClick={() => setSelectedMessage(message)}
+              >
+                <div className="message-preview-header">
+                  <span className="user-name">{otherUser?.displayName || 'Utilisateur'}</span>
+                  <span className="message-date">
+                    {new Date(message.timestamp).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="message-preview-content">
+                  <p>{message.content}</p>
+                </div>
+                {!message.read && message.recipientId === currentUser.uid && (
+                  <span className="unread-badge">Nouveau</span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {selectedMessage && (
+        <div className="message-detail">
+          <div className="message-detail-header">
+            <h3>
+              {users[selectedMessage.senderId === currentUser.uid ? 
+                selectedMessage.recipientId : selectedMessage.senderId]?.displayName || 'Utilisateur'}
+            </h3>
+          </div>
+          <div className="message-content">
+            <p>{selectedMessage.content}</p>
+          </div>
+          <div className="message-reply">
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Écrivez votre réponse..."
+            />
+            <button 
+              className="btn-primary"
+              onClick={() => sendMessage(
+                selectedMessage.senderId === currentUser.uid ? 
+                  selectedMessage.recipientId : selectedMessage.senderId
+              )}
+            >
+              Envoyer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const MessagesContent = () => {
-  return (
-    <div>
-      <h2>Messages</h2>
-      {/* Contenu pour la messagerie */}
-    </div>
-  );
-};
-
-const TravauxContent = () => {
-  return (
-    <div>
-      <h2>Travaux</h2>
-      {/* Contenu pour la gestion des travaux */}
-    </div>
-  );
-};
-
-const ProfileContent = () => {
+const ProfileContent = ({ userRole }) => {
   const [isEditing, setIsEditing] = useState(false);
   const { currentUser } = useAuth();
   const [userData, setUserData] = useState({
