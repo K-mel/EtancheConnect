@@ -254,6 +254,21 @@ const DevisList = ({ userType }) => {
                 <strong>Ville:</strong>
                 <span>{selectedDevis.ville}</span>
               </div>
+              {selectedDevis.photos && selectedDevis.photos.length > 0 && (
+                <div className="detail-row">
+                  <strong>Photos:</strong>
+                  <div className="photos-grid">
+                    {selectedDevis.photos.map((photo, index) => (
+                      <img
+                        key={index}
+                        src={photo}
+                        alt={`Photo ${index + 1}`}
+                        className="devis-photo"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Actions pour les professionnels */}

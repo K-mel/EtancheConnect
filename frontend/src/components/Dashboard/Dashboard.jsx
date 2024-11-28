@@ -39,6 +39,19 @@ import {
 import DevisList from './DevisList';
 import '../../styles/dashboard.css';
 import Messages from '../Messages/Messages';
+import { 
+  // ... autres imports existants ...
+  FaEdit,
+  FaSave,
+  FaIdCard,
+  FaExclamationCircle,
+  FaBuilding,
+  FaMapMarkerAlt,
+  FaMoneyBillWave,
+  FaUniversity
+} from 'react-icons/fa';
+import ProfileContent from '../Profile/ProfileContent';
+
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('apercu');
@@ -175,7 +188,7 @@ const Dashboard = () => {
 
     switch (activeTab) {
       case 'apercu':
-        return <AperçuContent userRole={userRole} />;
+        return <AperçuContent userRole={userRole} handleTabChange={handleTabChange} />;
       case 'devis':
         return <DevisContent />;
       case 'messages':
@@ -555,7 +568,7 @@ const StatistiquesContent = () => {
     </div>
   );
 };
-const AperçuContent = ({ userRole }) => {
+const AperçuContent = ({ userRole, handleTabChange }) => {
   const [stats, setStats] = useState({
     devis: 0,
     projets: 0,
@@ -742,9 +755,9 @@ const AperçuContent = ({ userRole }) => {
               <FaFileAlt />
               Devis récents
             </h3>
-            <button className="view-all-button" onClick={() => navigate('/devis')}>
-              Voir tout
-            </button>
+            <button className="view-all-button" onClick={() => handleTabChange('devis')}>
+  Voir tout
+</button>
           </div>
           {recentItems.devis.map(devis => (
             <div key={devis.id} className="recent-item">
@@ -1008,339 +1021,6 @@ const MessagesContent = ({ userRole }) => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-const ProfileContent = ({ userRole }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const { currentUser } = useAuth();
-  const [userData, setUserData] = useState({
-    displayName: '',
-    email: '',
-    phone: '',
-    address: '',
-    role: '',
-    companyName: '',
-    siret: '',
-    sector: '',
-    workingArea: '',
-    serviceDescription: '',
-    rates: '',
-    bankName: '',
-    iban: '',
-    bic: '',
-    documents: {
-      idCard: { contentType: '', fileName: '', uploadedAt: '', url: '' },
-      insurance: { contentType: '', fileName: '', uploadedAt: '', url: '' },
-      kbis: { contentType: '', fileName: '', uploadedAt: '', url: '' }
-    },
-    status: ''
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        if (currentUser) {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            console.log('User data from Firestore:', data);
-            
-            // Mettre à jour userData avec les données de Firestore
-            setUserData({
-              displayName: data.displayName || '',
-              email: data.email || '',
-              phone: data.phone || '',
-              address: data.address || '',
-              role: data.role || '',
-              companyName: data.companyName || '',
-              siret: data.siret || '',
-              sector: data.sector || '',
-              workingArea: data.workingArea || '',
-              serviceDescription: data.serviceDescription || '',
-              rates: data.rates || '',
-              bankName: data.bankName || '',
-              iban: data.iban || '',
-              bic: data.bic || '',
-              documents: {
-                idCard: data.documents?.idCard || { contentType: '', fileName: '', uploadedAt: '', url: '' },
-                insurance: data.documents?.insurance || { contentType: '', fileName: '', uploadedAt: '', url: '' },
-                kbis: data.documents?.kbis || { contentType: '', fileName: '', uploadedAt: '', url: '' }
-              },
-              status: data.status || ''
-            });
-          }
-        }
-        setLoading(false);
-      } catch (err) {
-        console.error('Erreur lors de la récupération des données:', err);
-        setError('Erreur lors de la récupération des données');
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [currentUser]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setUserData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      if (currentUser) {
-        const updateData = {
-          displayName: userData.displayName,
-          phone: userData.phone,
-          address: userData.address
-        };
-
-        if (userData.role === 'professionnel') {
-          Object.assign(updateData, {
-            companyName: userData.companyName,
-            sector: userData.sector,
-            workingArea: userData.workingArea,
-            serviceDescription: userData.serviceDescription,
-            rates: userData.rates,
-            bankName: userData.bankName,
-            iban: userData.iban,
-            bic: userData.bic
-          });
-        }
-
-        await setDoc(doc(db, 'users', currentUser.uid), updateData, { merge: true });
-        setSuccess('Profil mis à jour avec succès !');
-        setIsEditing(false);
-      }
-    } catch (err) {
-      console.error('Erreur lors de la mise à jour du profil:', err);
-      setError('Erreur lors de la mise à jour du profil');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <div className="loading">Chargement...</div>;
-  }
-
-  return (
-    <div className="dashboard-container">
-      <div className="profile-container">
-        <div className="profile-header">
-          <div className="profile-avatar">
-            <img src="https://via.placeholder.com/100" alt="Profile" />
-          </div>
-          <div className="profile-info">
-            <h2>{userData.displayName || 'Utilisateur'}</h2>
-            <p>{userData.role === 'professionnel' ? 'Professionnel' : 'Particulier'}</p>
-            {userData.role === 'professionnel' && (
-              <p className="status">Statut: {userData.status || 'En attente'}</p>
-            )}
-          </div>
-        </div>
-
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">{success}</div>}
-
-        <div className="profile-details">
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>Nom complet</label>
-              <input
-                type="text"
-                name="displayName"
-                value={userData.displayName || ''}
-                onChange={handleChange}
-                readOnly={!isEditing}
-              />
-            </div>
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                name="email"
-                value={userData.email || ''}
-                readOnly
-              />
-            </div>
-            <div className="form-group">
-              <label>Téléphone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={userData.phone || ''}
-                onChange={handleChange}
-                readOnly={!isEditing}
-              />
-            </div>
-            <div className="form-group">
-              <label>Adresse</label>
-              <textarea
-                name="address"
-                value={userData.address || ''}
-                onChange={handleChange}
-                readOnly={!isEditing}
-              />
-            </div>
-
-            {userData.role === 'professionnel' && (
-              <>
-                <div className="form-group">
-                  <label>Nom de l'entreprise</label>
-                  <input
-                    type="text"
-                    name="companyName"
-                    value={userData.companyName || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>SIRET</label>
-                  <input
-                    type="text"
-                    name="siret"
-                    value={userData.siret || ''}
-                    readOnly
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Secteur d'activité</label>
-                  <input
-                    type="text"
-                    name="sector"
-                    value={userData.sector || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Zone de travail</label>
-                  <input
-                    type="text"
-                    name="workingArea"
-                    value={userData.workingArea || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Description des services</label>
-                  <textarea
-                    name="serviceDescription"
-                    value={userData.serviceDescription || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Tarifs</label>
-                  <textarea
-                    name="rates"
-                    value={userData.rates || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Nom de la banque</label>
-                  <input
-                    type="text"
-                    name="bankName"
-                    value={userData.bankName || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>IBAN</label>
-                  <input
-                    type="text"
-                    name="iban"
-                    value={userData.iban || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>BIC</label>
-                  <input
-                    type="text"
-                    name="bic"
-                    value={userData.bic || ''}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div className="documents-section">
-                  <h3>Documents</h3>
-                  <div className="document-item">
-                    <label>Carte d'identité</label>
-                    {userData.documents?.idCard?.url && (
-                      <a href={userData.documents.idCard.url} target="_blank" rel="noopener noreferrer">
-                        Voir le document
-                      </a>
-                    )}
-                  </div>
-                  <div className="document-item">
-                    <label>Assurance</label>
-                    {userData.documents?.insurance?.url && (
-                      <a href={userData.documents.insurance.url} target="_blank" rel="noopener noreferrer">
-                        Voir le document
-                      </a>
-                    )}
-                  </div>
-                  <div className="document-item">
-                    <label>KBIS</label>
-                    {userData.documents?.kbis?.url && (
-                      <a href={userData.documents.kbis.url} target="_blank" rel="noopener noreferrer">
-                        Voir le document
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {!isEditing ? (
-              <button
-                type="button"
-                className="edit-button"
-                onClick={() => setIsEditing(true)}
-              >
-                Modifier le profil
-              </button>
-            ) : (
-              <div className="button-group">
-                <button type="submit" className="save-button">
-                  Enregistrer
-                </button>
-                <button
-                  type="button"
-                  className="cancel-button"
-                  onClick={() => setIsEditing(false)}
-                >
-                  Annuler
-                </button>
-              </div>
-            )}
-          </form>
-        </div>
-      </div>
     </div>
   );
 };

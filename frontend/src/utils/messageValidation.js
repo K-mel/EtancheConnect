@@ -1,49 +1,82 @@
 // Expressions régulières pour détecter les informations sensibles
-const PHONE_REGEX = /(?:(?:\+|00)33[\s.-]{0,3}(?:\(0\)[\s.-]{0,3})?|0)[1-9](?:(?:[\s.-]?\d{2}){4}|\d{2}(?:[\s.-]?\d{3}){2})/;
-const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-const URL_REGEX = /(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
+const PHONE_REGEX = /(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const URL_REGEX = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)/g;
 
 export const validateMessageContent = (content) => {
-  if (!content) return { isValid: false, error: 'Le message ne peut pas être vide.' };
-
-  // Vérifier la présence de numéros de téléphone
-  if (PHONE_REGEX.test(content)) {
+  if (!content || typeof content !== 'string') {
     return {
       isValid: false,
-      error: 'Le message ne doit pas contenir de numéro de téléphone.'
+      error: 'Le message est invalide.',
+      sensitiveInfo: []
     };
   }
 
-  // Vérifier la présence d'adresses email
-  if (EMAIL_REGEX.test(content)) {
+  const sensitiveInfo = [];
+  let matches;
+
+  // Vérifier les numéros de téléphone
+  matches = content.match(PHONE_REGEX);
+  if (matches) {
+    sensitiveInfo.push({
+      type: 'phone',
+      matches: [...new Set(matches)] // Supprime les doublons
+    });
+  }
+
+  // Vérifier les emails
+  matches = content.match(EMAIL_REGEX);
+  if (matches) {
+    sensitiveInfo.push({
+      type: 'email',
+      matches: [...new Set(matches)]
+    });
+  }
+
+  // Vérifier les URLs
+  matches = content.match(URL_REGEX);
+  if (matches) {
+    sensitiveInfo.push({
+      type: 'url',
+      matches: [...new Set(matches)]
+    });
+  }
+
+  if (sensitiveInfo.length > 0) {
+    const errorDetails = sensitiveInfo.map(info => {
+      const type = {
+        'phone': 'numéro(s) de téléphone',
+        'email': 'adresse(s) email',
+        'url': 'lien(s) URL'
+      }[info.type];
+      return `${type} (${info.matches.length} trouvé${info.matches.length > 1 ? 's' : ''})`;
+    }).join(', ');
+
     return {
       isValid: false,
-      error: 'Le message ne doit pas contenir d\'adresse email.'
+      error: `Votre message contient des informations sensibles : ${errorDetails}. Pour votre sécurité, ces informations ne sont pas autorisées.`,
+      sensitiveInfo
     };
   }
 
-  // Vérifier la présence d'URLs
-  if (URL_REGEX.test(content)) {
-    return {
-      isValid: false,
-      error: 'Le message ne doit pas contenir d\'URL ou de lien.'
-    };
-  }
-
-  return { isValid: true };
+  return {
+    isValid: true,
+    error: null,
+    sensitiveInfo: []
+  };
 };
 
 export const sanitizeMessageContent = (content) => {
-  if (!content) return '';
+  if (!content || typeof content !== 'string') return '';
+
+  // Remplacer les numéros de téléphone
+  let sanitized = content.replace(PHONE_REGEX, '**numéro masqué**');
   
-  // Remplacer les numéros de téléphone par [TÉLÉPHONE MASQUÉ]
-  content = content.replace(PHONE_REGEX, '[TÉLÉPHONE MASQUÉ]');
+  // Remplacer les emails
+  sanitized = sanitized.replace(EMAIL_REGEX, '**email masqué**');
   
-  // Remplacer les emails par [EMAIL MASQUÉ]
-  content = content.replace(EMAIL_REGEX, '[EMAIL MASQUÉ]');
+  // Remplacer les URLs
+  sanitized = sanitized.replace(URL_REGEX, '**lien masqué**');
   
-  // Remplacer les URLs par [LIEN MASQUÉ]
-  content = content.replace(URL_REGEX, '[LIEN MASQUÉ]');
-  
-  return content;
+  return sanitized;
 };
