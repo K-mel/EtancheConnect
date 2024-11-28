@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import './Messages.css';
-import { FaEnvelope, FaEnvelopeOpen, FaReply, FaTrash } from 'react-icons/fa';
+import { FaEnvelope } from 'react-icons/fa';
 
-const Messages = () => {
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
+const Messages = ({ userRole }) => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState([]);
+  const [users, setUsers] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [recipientId, setRecipientId] = useState('');
 
   useEffect(() => {
-    fetchMessages();
+    if (currentUser) {
+      fetchMessages();
+    }
   }, [currentUser]);
 
   const fetchMessages = async () => {
@@ -19,84 +26,145 @@ const Messages = () => {
 
     try {
       const messagesRef = collection(db, 'messages');
-      const q = query(
+      
+      // Première requête pour obtenir les IDs des messages
+      const participantsQuery = query(
         messagesRef,
-        where('recipientId', '==', currentUser.uid),
-        orderBy('timestamp', 'desc')
+        where('participants', 'array-contains', currentUser.uid)
       );
+      
+      const querySnapshot = await getDocs(participantsQuery);
+      const messagesData = [];
+      const userIds = new Set();
 
-      const querySnapshot = await getDocs(q);
-      const messagesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      }));
+      // Trier les messages par timestamp côté client
+      const sortedMessages = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
+      sortedMessages.forEach((messageData) => {
+        messagesData.push(messageData);
+        const otherUserId = messageData.senderId === currentUser.uid 
+          ? messageData.recipientId 
+          : messageData.senderId;
+        userIds.add(otherUserId);
+      });
+
+      // Récupérer les informations des utilisateurs
+      const usersData = {};
+      for (const userId of userIds) {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          usersData[userId] = userData;
+        }
+      }
+
+      setUsers(usersData);
       setMessages(messagesData);
+      setLoading(false);
     } catch (error) {
       console.error("Erreur lors de la récupération des messages:", error);
-    } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (date) => {
-    if (!date) return '';
-    return new Date(date).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !recipientId) return;
+
+    try {
+      const messagesRef = collection(db, 'messages');
+      const messageData = {
+        content: newMessage.trim(),
+        senderId: currentUser.uid,
+        recipientId: recipientId,
+        timestamp: new Date().toISOString(),
+        read: false,
+        participants: [currentUser.uid, recipientId]
+      };
+
+      await addDoc(messagesRef, messageData);
+      setNewMessage('');
+      setRecipientId('');
+      fetchMessages();
+    } catch (error) {
+      console.error("Erreur lors de l'envoi du message:", error);
+    }
   };
 
   if (loading) {
-    return <div className="messages-loading">Chargement des messages...</div>;
+    return <div className="loading">Chargement des messages...</div>;
   }
 
   return (
     <div className="messages-container">
-      <div className="messages-header">
-        <h2>Messagerie</h2>
-        <p>Gérez vos messages et communications</p>
-      </div>
-
       <div className="messages-list">
+        <h3>Conversations</h3>
         {messages.length === 0 ? (
-          <div className="no-messages">
-            <FaEnvelope size={40} />
-            <p>Vous n'avez pas de messages</p>
+          <div className="no-messages" style={{ padding: '20px', textAlign: 'center' }}>
+            <FaEnvelope size={40} style={{ marginBottom: '10px', color: '#6c757d' }} />
+            <p>Aucun message</p>
           </div>
         ) : (
-          messages.map(message => (
-            <div 
-              key={message.id} 
-              className={`message-item ${!message.read ? 'unread' : ''}`}
-            >
-              <div className="message-icon">
-                {message.read ? <FaEnvelopeOpen /> : <FaEnvelope />}
-              </div>
-              <div className="message-content">
-                <div className="message-header">
-                  <h3>{message.subject}</h3>
-                  <span className="message-date">{formatDate(message.timestamp)}</span>
+          <div className="messages-items">
+            {messages.map((message) => {
+              const otherUserId = message.senderId === currentUser.uid ? message.recipientId : message.senderId;
+              const otherUser = users[otherUserId];
+
+              return (
+                <div
+                  key={message.id}
+                  className={`message-preview ${selectedMessage?.id === message.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedMessage(message)}
+                  style={{ cursor: 'pointer', padding: '15px', borderBottom: '1px solid #eee' }}
+                >
+                  <div className="message-preview-header">
+                    <span className="user-name" style={{ fontWeight: 'bold' }}>
+                      {message.senderId === currentUser.uid ? 'Moi' : otherUser?.displayName || otherUser?.companyName || 'Utilisateur'}
+                    </span>
+                    <span className="message-date" style={{ color: '#666' }}>
+                      {new Date(message.timestamp).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                  <div className="message-preview-content">
+                    <p style={{ 
+                      margin: '5px 0',
+                      color: message.read ? '#666' : '#000',
+                      fontWeight: message.read ? 'normal' : 'bold'
+                    }}>
+                      {message.content}
+                    </p>
+                  </div>
+                  {!message.read && message.recipientId === currentUser.uid && (
+                    <div className="message-status" style={{ 
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      alignSelf: 'flex-start',
+                      marginTop: '5px'
+                    }}>
+                      Nouveau
+                    </div>
+                  )}
                 </div>
-                <p className="message-sender">De: {message.senderName}</p>
-                <p className="message-preview">{message.content}</p>
-              </div>
-              <div className="message-actions">
-                <button className="action-button reply">
-                  <FaReply />
-                </button>
-                <button className="action-button delete">
-                  <FaTrash />
-                </button>
-              </div>
-            </div>
-          ))
+              );
+            })}
+          </div>
         )}
       </div>
+      {selectedMessage && (
+        <div className="message-detail">
+          {/* Détails du message sélectionné */}
+        </div>
+      )}
     </div>
   );
 };

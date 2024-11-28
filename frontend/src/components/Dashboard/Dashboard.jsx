@@ -38,6 +38,7 @@ import {
 } from 'react-icons/fa';
 import DevisList from './DevisList';
 import '../../styles/dashboard.css';
+import Messages from '../Messages/Messages';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('apercu');
@@ -178,7 +179,7 @@ const Dashboard = () => {
       case 'devis':
         return <DevisContent />;
       case 'messages':
-        return <MessagesContent userRole={userRole} />;
+        return <Messages userRole={userRole} />;
       case 'projets':
         return <ProjetsContent />;
       case 'utilisateurs':
@@ -293,24 +294,26 @@ const ProjetsContent = () => {
   );
 };
 
-// Composants pour les administrateurs
 const UtilisateursContent = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState([]);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, 'users');
-        const usersSnap = await getDocs(usersRef);
-        const usersData = usersSnap.docs.map(doc => ({
+        const snapshot = await getDocs(usersRef);
+        const usersData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
         setUsers(usersData);
+        setFilteredUsers(usersData);
         setLoading(false);
       } catch (error) {
-        console.error('Erreur lors de la récupération des utilisateurs:', error);
+        console.error("Erreur lors de la récupération des utilisateurs:", error);
         setLoading(false);
       }
     };
@@ -318,15 +321,18 @@ const UtilisateursContent = () => {
     fetchUsers();
   }, []);
 
-  const getRoleBadgeClass = (role) => {
-    switch (role) {
-      case 'administrateur':
-        return 'admin';
-      case 'professionnel':
-        return 'pro';
-      default:
-        return 'user';
-    }
+  useEffect(() => {
+    const results = users.filter(user =>
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.role?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredUsers(results);
+  }, [searchTerm, users]);
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
   };
 
   if (loading) {
@@ -334,30 +340,47 @@ const UtilisateursContent = () => {
   }
 
   return (
-    <div className="admin-dashboard">
+    <div className="users-container">
+      <div className="search-container" style={{
+        margin: '20px 0',
+        padding: '0 20px'
+      }}>
+        <input
+          type="text"
+          placeholder="Rechercher un utilisateur..."
+          value={searchTerm}
+          onChange={handleSearch}
+          style={{
+            width: '100%',
+            padding: '10px',
+            fontSize: '16px',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            marginBottom: '20px'
+          }}
+        />
+      </div>
       <div className="users-grid">
-        {users.map(user => (
+        {filteredUsers.map(user => (
           <div key={user.id} className="user-card">
-            <h3>
-              <FaUserTie className="user-icon" />
-              {user.displayName || 'Utilisateur'}
-            </h3>
-            <p>
-              <FaEnvelope />
-              {user.email}
-            </p>
-            <p>
-              <FaUserCheck />
-              <span className={`user-role ${getRoleBadgeClass(user.role)}`}>
-                {user.role}
+            <div className="user-header">
+              <h3>{user.displayName || user.companyName || 'Utilisateur'}</h3>
+              <span className={`status ${user.status}`}>
+                {user.status === 'validated' ? 'Validé' : 
+                 user.status === 'pending' ? 'En attente' : 'Inactif'}
               </span>
-            </p>
-            {user.phoneNumber && (
-              <p>
-                <FaPhone />
-                {user.phoneNumber}
-              </p>
-            )}
+            </div>
+            <div className="user-info">
+              <p><strong>Email:</strong> {user.email}</p>
+              <p><strong>Rôle:</strong> {user.role}</p>
+              <p><strong>Téléphone:</strong> {user.phone || 'Non renseigné'}</p>
+              {user.companyName && (
+                <p><strong>Entreprise:</strong> {user.companyName}</p>
+              )}
+              {user.siret && (
+                <p><strong>SIRET:</strong> {user.siret}</p>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -453,6 +476,8 @@ const StatistiquesContent = () => {
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalProfessionals: 0,
+    validatedProfessionals: 0,
+    totalParticulars: 0,
     totalProjects: 0,
     totalQuotes: 0
   });
@@ -472,10 +497,14 @@ const StatistiquesContent = () => {
         ]);
 
         const professionals = usersSnap.docs.filter(doc => doc.data().role === 'professionnel');
+        const validatedPros = professionals.filter(doc => doc.data().status === 'validated');
+        const particulars = usersSnap.docs.filter(doc => doc.data().role === 'particulier');
 
         setStats({
           totalUsers: usersSnap.size,
           totalProfessionals: professionals.length,
+          validatedProfessionals: validatedPros.length,
+          totalParticulars: particulars.length,
           totalProjects: projectsSnap.size,
           totalQuotes: quotesSnap.size
         });
@@ -505,6 +534,12 @@ const StatistiquesContent = () => {
           <FaUserTie className="stat-icon" />
           <h3>Professionnels</h3>
           <div className="stat-value">{stats.totalProfessionals}</div>
+          <div className="stat-detail">Validés: {stats.validatedProfessionals}</div>
+        </div>
+        <div className="stat-card">
+          <FaUsers className="stat-icon" />
+          <h3>Particuliers</h3>
+          <div className="stat-value">{stats.totalParticulars}</div>
         </div>
         <div className="stat-card">
           <FaProjectDiagram className="stat-icon" />
@@ -520,7 +555,6 @@ const StatistiquesContent = () => {
     </div>
   );
 };
-
 const AperçuContent = ({ userRole }) => {
   const [stats, setStats] = useState({
     devis: 0,
@@ -622,9 +656,18 @@ const AperçuContent = ({ userRole }) => {
           .slice(0, 3);
 
         const recentMessages = messagesSnap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0))
-          .slice(0, 3);
+  .map(doc => ({ id: doc.id, ...doc.data() }))
+  .sort((a, b) => {
+    const getTime = (ts) => {
+      if (!ts) return 0;
+      if (typeof ts.toMillis === 'function') return ts.toMillis();
+      if (typeof ts === 'string') return new Date(ts).getTime();
+      if (ts instanceof Date) return ts.getTime();
+      return 0;
+    };
+    return getTime(b.timestamp) - getTime(a.timestamp);
+  })
+  .slice(0, 3);
 
         setRecentItems({
           devis: recentDevis,

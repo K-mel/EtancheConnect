@@ -30,13 +30,15 @@ service cloud.firestore {
       );
     }
 
+    // Règles pour la collection messages
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
     // Règles pour la collection users
     match /users/{userId} {
-      allow read: if isAuthenticated() && (
-        request.auth.uid == userId || 
-        isAdmin()
-      );
-      
+      allow read: if isAuthenticated();
       allow list: if isAuthenticated() && (
         isAdmin() || 
         request.auth.uid == userId
@@ -117,30 +119,6 @@ service cloud.firestore {
       );
     }
 
-    // Règles pour la collection messages
-    match /messages/{messageId} {
-      allow read, list: if isAuthenticated() && (
-        isParticipant(resource.data) ||
-        isAdmin()
-      );
-      
-      allow create: if isAuthenticated() && (
-        isParticipant(request.resource.data) ||
-        request.resource.data.senderId == request.auth.uid ||
-        isAdmin()
-      );
-      
-      allow update: if isAuthenticated() && (
-        isParticipant(resource.data) ||
-        isAdmin()
-      );
-      
-      allow delete: if isAuthenticated() && (
-        isParticipant(resource.data) ||
-        isAdmin()
-      );
-    }
-
     // Règles pour la collection contacts
     match /contacts/{contactId} {
       allow read, list: if isAuthenticated() && (
@@ -174,12 +152,7 @@ service cloud.firestore {
 
     // Règle par défaut pour les autres collections
     match /{document=**} {
-      allow read: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId ||
-        request.auth.uid == resource.data.professionalId ||
-        isAdmin()
-      );
-      allow write: if isAdmin();
+      allow read, write: if isAuthenticated();
     }
   }
 }
