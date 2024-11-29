@@ -33,7 +33,7 @@
 .devis-actions button {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--white);
+  color: var(--bleu);
   padding: 0.75rem 1.5rem;
   border-radius: var(--border-radius);
   cursor: pointer;

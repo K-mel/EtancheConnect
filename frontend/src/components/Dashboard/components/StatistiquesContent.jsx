@@ -1,30 +1,38 @@
 import React from 'react';
-import { FaChartBar } from 'react-icons/fa';
+import { FaChartBar, FaUsers, FaProjectDiagram, FaFileInvoice, FaEnvelope } from 'react-icons/fa';
 
-const StatistiquesContent = ({ stats }) => {
+const StatistiquesContent = ({ stats = {} }) => {
+  const defaultStats = {
+    totalUsers: 0,
+    totalProjects: 0,
+    totalDevis: 0,
+    totalMessages: 0,
+    ...stats
+  };
+
   return (
     <div className="statistiques-content">
       <h2>Statistiques</h2>
       <div className="stats-grid">
         <div className="stat-card">
-          <FaChartBar />
+          <FaUsers className="stat-icon" />
           <h3>Utilisateurs</h3>
-          <p>{stats.totalUsers}</p>
+          <p>{defaultStats.totalUsers}</p>
         </div>
         <div className="stat-card">
-          <FaChartBar />
+          <FaProjectDiagram className="stat-icon" />
           <h3>Projets</h3>
-          <p>{stats.totalProjects}</p>
+          <p>{defaultStats.totalProjects}</p>
         </div>
         <div className="stat-card">
-          <FaChartBar />
+          <FaFileInvoice className="stat-icon" />
           <h3>Devis</h3>
-          <p>{stats.totalDevis}</p>
+          <p>{defaultStats.totalDevis}</p>
         </div>
         <div className="stat-card">
-          <FaChartBar />
+          <FaEnvelope className="stat-icon" />
           <h3>Messages</h3>
-          <p>{stats.totalMessages}</p>
+          <p>{defaultStats.totalMessages}</p>
         </div>
       </div>
     </div>

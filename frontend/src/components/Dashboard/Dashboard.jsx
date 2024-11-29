@@ -4,7 +4,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../firebase';
 import { 
   doc, 
-  getDoc
+  getDoc,
+  collection,
+  getDocs,
+  query,
+  where
 } from 'firebase/firestore';
 import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck } from 'react-icons/fa';
 import DevisList from './DevisList';
@@ -16,12 +20,20 @@ import UtilisateursContent from './components/UtilisateursContent';
 import ValidationsContent from './components/ValidationsContent';
 import StatistiquesContent from './components/StatistiquesContent';
 import DevisContent from './components/DevisContent';
+import MessagesContent from './components/MessagesContent';
 import '../../styles/dashboard.css';
+import './styles/statistiques.css';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('apercu');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalProjects: 0,
+    totalDevis: 0,
+    totalMessages: 0
+  });
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -42,6 +54,41 @@ const Dashboard = () => {
       fetchUserRole();
     }
   }, [currentUser, navigate]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (userRole === 'administrateur') {
+        try {
+          // Récupérer le nombre total d'utilisateurs
+          const usersSnapshot = await getDocs(collection(db, 'users'));
+          const totalUsers = usersSnapshot.size;
+
+          // Récupérer le nombre total de projets
+          const projetsSnapshot = await getDocs(collection(db, 'projets'));
+          const totalProjects = projetsSnapshot.size;
+
+          // Récupérer le nombre total de devis
+          const devisSnapshot = await getDocs(collection(db, 'devis'));
+          const totalDevis = devisSnapshot.size;
+
+          // Récupérer le nombre total de messages
+          const messagesSnapshot = await getDocs(collection(db, 'messages'));
+          const totalMessages = messagesSnapshot.size;
+
+          setStats({
+            totalUsers,
+            totalProjects,
+            totalDevis,
+            totalMessages
+          });
+        } catch (error) {
+          console.error('Erreur lors de la récupération des statistiques:', error);
+        }
+      }
+    };
+
+    fetchStats();
+  }, [userRole]);
 
   const handleLogout = async () => {
     try {
@@ -135,6 +182,11 @@ const Dashboard = () => {
             icon: <FaProjectDiagram />
           },
           {
+            id: 'messages',
+            label: 'Messages',
+            icon: <FaEnvelope />
+          },
+          {
             id: 'profile',
             label: 'Mon Profil',
             icon: <FaUserTie />
@@ -147,15 +199,14 @@ const Dashboard = () => {
   };
 
   const renderContent = () => {
-    if (!userRole) return <div>Chargement...</div>;
-
     switch (activeTab) {
       case 'apercu':
-        return <AperçuContent userRole={userRole} handleTabChange={handleTabChange} />;
+        return <AperçuContent userRole={userRole} />;
       case 'devis':
-        return <DevisContent />;
+        return <DevisList userType={userRole} />;
       case 'messages':
-        return <Messages userRole={userRole} />;
+        // Seuls les administrateurs utilisent MessagesContent, les autres utilisent Messages
+        return userRole === 'administrateur' ? <MessagesContent /> : <Messages userRole={userRole} />;
       case 'projets':
         return <ProjetsContent />;
       case 'utilisateurs':
@@ -163,9 +214,9 @@ const Dashboard = () => {
       case 'validations':
         return <ValidationsContent />;
       case 'statistiques':
-        return <StatistiquesContent />;
+        return <StatistiquesContent stats={stats} />;
       case 'profile':
-        return <ProfileContent userRole={userRole} />;
+        return <ProfileContent />;
       default:
         return <AperçuContent userRole={userRole} />;
     }
@@ -198,6 +249,19 @@ const Dashboard = () => {
             ))}
           </ul>
         </nav>
+        {userRole === 'administrateur' && (
+          <nav className="sidebar-nav">
+            <ul>
+              <li
+                className={`sidebar-item ${activeTab === 'messages' ? 'active' : ''}`}
+                onClick={() => setActiveTab('messages')}
+              >
+                <FaEnvelope className="sidebar-icon" />
+                <span>Messages</span>
+              </li>
+            </ul>
+          </nav>
+        )}
         <div className="sidebar-footer">
           <button onClick={handleLogout} className="logout-button">
             <span className="icon">🚪</span>

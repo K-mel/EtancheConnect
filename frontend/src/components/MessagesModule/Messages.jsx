@@ -8,7 +8,7 @@ import { validateMessageContent, sanitizeMessageContent } from '../../utils/mess
 import { FaEnvelope } from 'react-icons/fa';
 import './Messages.css';
 
-const Messages = () => {
+const Messages = ({ userRole }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
@@ -23,41 +23,50 @@ const Messages = () => {
   const [showPendingOnly, setShowPendingOnly] = useState(false);
 
   useEffect(() => {
-    // Rediriger si l'utilisateur n'est pas connecté
     if (!currentUser) {
       navigate('/login');
       return;
     }
 
-    fetchMessages();
-    if (currentUser.role === 'admin') {
-      fetchPendingMessages();
-    }
-  }, [currentUser, navigate]);
+    const initializeMessages = async () => {
+      await fetchMessages();
+      if (userRole === 'administrateur') {
+        await fetchPendingMessages();
+      }
+    };
+
+    initializeMessages();
+  }, [currentUser, userRole, navigate]);
 
   const fetchMessages = async () => {
     if (!currentUser) return;
 
     try {
-      // Première requête pour obtenir les messages par participants
+      setLoading(true);
       const messagesRef = collection(db, 'messages');
-      const participantsQuery = query(
+      
+      // Requête simplifiée sans orderBy pour éviter l'erreur d'index
+      const messagesQuery = query(
         messagesRef,
         where('participants', 'array-contains', currentUser.uid)
       );
 
-      const querySnapshot = await getDocs(participantsQuery);
+      const querySnapshot = await getDocs(messagesQuery);
       const fetchedMessages = [];
       const userIds = new Set();
 
       // Trier les messages côté client
       querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(a.timestamp || 0);
+          const dateB = b.createdAt?.toDate?.() || new Date(b.timestamp || 0);
+          return dateB - dateA;
+        })
         .forEach((messageData) => {
           fetchedMessages.push(messageData);
-          userIds.add(messageData.senderId);
-          userIds.add(messageData.recipientId);
+          if (messageData.senderId) userIds.add(messageData.senderId);
+          if (messageData.receiverId) userIds.add(messageData.receiverId);
         });
 
       // Récupérer les informations des utilisateurs
@@ -66,52 +75,42 @@ const Messages = () => {
         if (userId !== currentUser.uid) {
           const userDoc = await getDoc(doc(db, 'users', userId));
           if (userDoc.exists()) {
-            usersData[userId] = userDoc.data();
+            const userData = userDoc.data();
+            usersData[userId] = {
+              ...userData,
+              displayName: userData.role === 'particulier' 
+                ? userData.nom 
+                : userData.displayName
+            };
           }
         }
       }
 
       setUsers(usersData);
       setMessages(fetchedMessages);
-      setLoading(false);
     } catch (error) {
       console.error("Erreur lors de la récupération des messages:", error);
+    } finally {
       setLoading(false);
     }
   };
 
   const fetchPendingMessages = async () => {
+    if (userRole !== 'administrateur') return;
+
     try {
       const messagesRef = collection(db, 'messages');
       const pendingQuery = query(
         messagesRef,
-        where('images', '!=', []),
-        where('imagesApproved', '==', false)
+        where('status', '==', 'pending')
       );
 
       const querySnapshot = await getDocs(pendingQuery);
-      const pendingMsgs = [];
-      const userIds = new Set();
+      const pendingMsgs = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-      querySnapshot.docs.forEach((doc) => {
-        const messageData = { id: doc.id, ...doc.data() };
-        pendingMsgs.push(messageData);
-        userIds.add(messageData.senderId);
-        userIds.add(messageData.recipientId);
-      });
-
-      // Récupérer les informations des utilisateurs si pas déjà chargées
-      const usersData = { ...users };
-      for (const userId of userIds) {
-        if (!usersData[userId] && userId !== currentUser.uid) {
-          const userDoc = await getDoc(doc(db, 'users', userId));
-          if (userDoc.exists()) {
-            usersData[userId] = userDoc.data();
-          }
-        }
-      }
-
-      setUsers(usersData);
       setPendingMessages(pendingMsgs);
     } catch (error) {
       console.error("Erreur lors de la récupération des messages en attente:", error);
@@ -181,17 +180,17 @@ const Messages = () => {
       const messageData = {
         content: messageContent,
         senderId: currentUser.uid,
-        recipientId: selectedMessage.senderId === currentUser.uid 
-          ? selectedMessage.recipientId 
+        receiverId: selectedMessage.senderId === currentUser.uid 
+          ? selectedMessage.receiverId 
           : selectedMessage.senderId,
         timestamp: new Date().toISOString(),
         read: false,
         participants: [currentUser.uid, selectedMessage.senderId === currentUser.uid 
-          ? selectedMessage.recipientId 
+          ? selectedMessage.receiverId 
           : selectedMessage.senderId],
         images: imageUrls,
-        imagesApproved: currentUser.role === 'admin',
-        isPro: currentUser.role === 'professional'
+        status: userRole === 'administrateur' ? 'approved' : 'pending',
+        isPro: userRole === 'professionnel'
       };
 
       await addDoc(messagesRef, messageData);
@@ -207,12 +206,12 @@ const Messages = () => {
   };
 
   const approveImage = async (messageId) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (!currentUser || userRole !== 'administrateur') return;
 
     try {
       const messageRef = doc(db, 'messages', messageId);
       await updateDoc(messageRef, {
-        imagesApproved: true
+        status: 'approved'
       });
       fetchMessages();
     } catch (error) {
@@ -243,7 +242,7 @@ const Messages = () => {
           <div className="message-images">
             {message.images.map((imageUrl, index) => (
               <div key={index} className="message-image-container">
-                {message.imagesApproved ? (
+                {message.status === 'approved' ? (
                   <img 
                     src={imageUrl} 
                     alt={`Image ${index + 1}`} 
@@ -252,7 +251,7 @@ const Messages = () => {
                 ) : (
                   <div className="pending-image">
                     <span>Image en attente d'approbation</span>
-                    {currentUser?.role === 'admin' && (
+                    {userRole === 'administrateur' && (
                       <button 
                         onClick={() => approveImage(message.id)}
                         className="approve-button"
@@ -275,7 +274,7 @@ const Messages = () => {
       <div className="messages-list">
         <div className="messages-header">
           <h3>Messages</h3>
-          {currentUser.role === 'admin' && (
+          {userRole === 'administrateur' && (
             <div className="messages-filter">
               <button
                 className={`filter-button ${showPendingOnly ? 'active' : ''}`}
@@ -305,7 +304,7 @@ const Messages = () => {
               <div className="message-preview-header">
                 <span className="user-name">
                   {message.senderId === currentUser?.uid 
-                    ? users[message.recipientId]?.displayName || users[message.recipientId]?.companyName || 'Utilisateur'
+                    ? users[message.receiverId]?.displayName || users[message.receiverId]?.companyName || 'Utilisateur'
                     : users[message.senderId]?.displayName || users[message.senderId]?.companyName || 'Utilisateur'}
                 </span>
                 <span className="message-time">
@@ -318,7 +317,7 @@ const Messages = () => {
                   {message.images?.length > 0 && (
                     <span className="image-indicator">
                       {message.images.length} photo(s)
-                      {!message.imagesApproved && (
+                      {message.status !== 'approved' && (
                         <span className="pending-badge">En attente</span>
                       )}
                     </span>

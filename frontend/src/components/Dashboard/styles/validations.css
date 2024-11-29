@@ -1,0 +1,213 @@
+.validations-content {
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.validations-content h2 {
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.validations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.validation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.validation-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.validation-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.validation-type {
+  font-weight: 600;
+  color: #2c3e50;
+  text-transform: capitalize;
+  min-width: 120px;
+}
+
+.validation-date {
+  color: #666;
+  min-width: 100px;
+}
+
+.validation-status {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  text-transform: capitalize;
+}
+
+.validation-status.pending {
+  background-color: #f1c40f;
+  color: #2c3e50;
+}
+
+.validation-status.approved {
+  background-color: #27ae60;
+  color: white;
+}
+
+.validation-status.rejected {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.validation-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.action-button {
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-button:hover {
+  transform: scale(1.1);
+}
+
+.action-button.approve {
+  color: #27ae60;
+}
+
+.action-button.approve:hover {
+  background-color: rgba(39, 174, 96, 0.1);
+}
+
+.action-button.reject {
+  color: #e74c3c;
+}
+
+.action-button.reject:hover {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.action-button.view {
+  color: #3498db;
+}
+
+.action-button.view:hover {
+  background-color: rgba(52, 152, 219, 0.1);
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  font-size: 2rem;
+  color: #3498db;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-container {
+  padding: 20px;
+  text-align: center;
+  color: #e74c3c;
+}
+
+.error-container button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.validation-details {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.validation-details h3 {
+  margin-bottom: 20px;
+  color: #2c3e50;
+}
+
+.validation-details-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.validation-details-content p {
+  margin: 0;
+  color: #666;
+}
+
+.validation-details-content strong {
+  color: #2c3e50;
+  margin-right: 10px;
+}
+
+.validation-details-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.validation-details-actions .action-button {
+  padding: 8px 16px;
+  color: white;
+  font-weight: 500;
+}
+
+.validation-details-actions .approve {
+  background-color: #27ae60;
+}
+
+.validation-details-actions .reject {
+  background-color: #e74c3c;
+}
+
+.validation-details-actions .back {
+  background-color: #95a5a6;
+}
+
+.no-validations {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+  font-style: italic;
+}

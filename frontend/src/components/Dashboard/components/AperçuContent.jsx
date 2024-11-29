@@ -7,7 +7,8 @@ import {
   FaChartLine,
   FaClock,
   FaBell,
-  FaCheckCircle
+  FaCheckCircle,
+  FaUsers
 } from 'react-icons/fa';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
@@ -18,6 +19,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     devis: 0,
     projets: 0,
     messages: 0,
+    utilisateurs: 0,
     taches: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
@@ -28,67 +30,74 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     const fetchDashboardData = async () => {
       try {
         const user = auth.currentUser;
-        console.log('Current user:', user);
-        console.log('User role:', userRole);
-        
         if (!user) {
           setLoading(false);
           return;
         }
 
-        // Récupérer les statistiques
-        let devisQuery;
-        if (userRole === 'professional') {
-          console.log('Fetching devis for professional:', user.uid);
-          devisQuery = query(
-            collection(db, 'devis'),
-            where('professionnelId', '==', user.uid),
-            orderBy('createdAt', 'desc')
-          );
+        let statsData = {
+          devis: 0,
+          projets: 0,
+          messages: 0,
+          utilisateurs: 0,
+          taches: 0
+        };
+
+        // Pour les administrateurs, récupérer toutes les données
+        if (userRole === 'administrateur') {
+          // Compter tous les devis
+          const allDevisSnapshot = await getDocs(collection(db, 'devis'));
+          statsData.devis = allDevisSnapshot.size;
+
+          // Compter tous les projets
+          const allProjetsSnapshot = await getDocs(collection(db, 'projects'));
+          statsData.projets = allProjetsSnapshot.size;
+
+          // Compter tous les messages
+          const allMessagesSnapshot = await getDocs(collection(db, 'messages'));
+          statsData.messages = allMessagesSnapshot.size;
+
+          // Compter tous les utilisateurs
+          const allUsersSnapshot = await getDocs(collection(db, 'users'));
+          statsData.utilisateurs = allUsersSnapshot.size;
+
         } else {
-          console.log('Fetching devis for particular:', user.uid);
-          devisQuery = query(
+          // Pour les autres utilisateurs, récupérer leurs données spécifiques
+          let devisQuery = query(
             collection(db, 'devis'),
-            where('userId', '==', user.uid),
+            where(userRole === 'professional' ? 'professionnelId' : 'userId', '==', user.uid),
             orderBy('createdAt', 'desc')
           );
+          const devisSnapshot = await getDocs(devisQuery);
+          statsData.devis = devisSnapshot.size;
+
+          const projetsQuery = query(
+            collection(db, 'projects'),
+            where(userRole === 'professional' ? 'professionnelId' : 'userId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+          );
+          const projetsSnapshot = await getDocs(projetsQuery);
+          statsData.projets = projetsSnapshot.size;
+
+          const messagesQuery = query(
+            collection(db, 'messages'),
+            where('participants', 'array-contains', user.uid),
+            where('read', '==', false)
+          );
+          const messagesSnapshot = await getDocs(messagesQuery);
+          statsData.messages = messagesSnapshot.size;
         }
-        const devisSnapshot = await getDocs(devisQuery);
-        console.log('Devis count:', devisSnapshot.size);
-        console.log('Devis data:', devisSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-        console.log('Fetching projects...');
-        const projetsQuery = query(
-          collection(db, 'projects'),
-          where(userRole === 'professional' ? 'professionnelId' : 'userId', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const projetsSnapshot = await getDocs(projetsQuery);
-        console.log('Projects count:', projetsSnapshot.size);
-        console.log('Projects data:', projetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-        console.log('Fetching messages...');
-        const messagesQuery = query(
-          collection(db, 'messages'),
-          where('participants', 'array-contains', user.uid),
-          where('read', '==', false)
-        );
-        const messagesSnapshot = await getDocs(messagesQuery);
-        console.log('Messages count:', messagesSnapshot.size);
-        console.log('Messages data:', messagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
         // Récupérer les activités récentes
         let activities = [];
         try {
           const activityQuery = query(
             collection(db, 'activites'),
-            where('userId', '==', user.uid),
-            orderBy('timestamp', 'desc'),
+            userRole === 'administrateur' ? orderBy('timestamp', 'desc') : where('userId', '==', user.uid),
             limit(5)
           );
           const activitySnapshot = await getDocs(activityQuery);
 
-          // Transformer les activités récentes
           activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -101,7 +110,6 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           });
         } catch (activityError) {
           console.warn('Erreur lors de la récupération des activités:', activityError);
-          // Utiliser des activités par défaut si la requête échoue
           activities = [
             {
               icon: <FaClock />,
@@ -113,14 +121,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           ];
         }
 
-        // Mettre à jour les statistiques
-        setStats({
-          devis: devisSnapshot.size,
-          projets: projetsSnapshot.size,
-          messages: messagesSnapshot.size,
-          taches: 0 // À implémenter selon votre logique de tâches
-        });
-
+        setStats(statsData);
         setRecentActivity(activities);
         setLoading(false);
       } catch (error) {
@@ -165,53 +166,64 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     return `Il y a ${Math.round(diffMinutes / 1440)} j`;
   };
 
-  const stats_list = [
-    {
-      icon: <FaFileInvoiceDollar />,
-      value: stats.devis,
-      label: 'Devis en cours',
-      color: '#10b981'
-    },
-    {
-      icon: <FaProjectDiagram />,
-      value: stats.projets,
-      label: 'Projets actifs',
-      color: '#3b82f6'
-    },
-    {
-      icon: <FaEnvelope />,
-      value: stats.messages,
-      label: 'Messages non lus',
-      color: '#6366f1'
-    },
-    {
-      icon: <FaChartLine />,
-      value: stats.taches,
-      label: 'Tâches en cours',
-      color: '#8b5cf6'
+  // Définir les statistiques à afficher en fonction du rôle
+  const getStatsList = () => {
+    if (userRole === 'administrateur') {
+      return [
+        {
+          icon: <FaUsers />,
+          value: stats.utilisateurs,
+          label: 'Utilisateurs',
+          color: '#10b981'
+        },
+        {
+          icon: <FaFileInvoiceDollar />,
+          value: stats.devis,
+          label: 'Devis totaux',
+          color: '#3b82f6'
+        },
+        {
+          icon: <FaProjectDiagram />,
+          value: stats.projets,
+          label: 'Projets totaux',
+          color: '#6366f1'
+        },
+        {
+          icon: <FaEnvelope />,
+          value: stats.messages,
+          label: 'Messages totaux',
+          color: '#8b5cf6'
+        }
+      ];
     }
-  ];
 
-  const actions = [
-    {
-      icon: <FaFileInvoiceDollar />,
-      title: 'Nouveau devis',
-      description: 'Créer une nouvelle demande de devis',
-      action: () => handleTabChange('devis')
-    },
-    {
-      icon: <FaEnvelope />,
-      title: 'Messages',
-      description: 'Consulter vos messages et notifications',
-      action: () => handleTabChange('messages')
-    },
-    {
-      icon: <FaProjectDiagram />,
-      title: 'Projets',
-      description: 'Gérer vos projets en cours',
-      action: () => handleTabChange('projets')
-    }
-  ];
+    return [
+      {
+        icon: <FaFileInvoiceDollar />,
+        value: stats.devis,
+        label: 'Devis en cours',
+        color: '#10b981'
+      },
+      {
+        icon: <FaProjectDiagram />,
+        value: stats.projets,
+        label: 'Projets actifs',
+        color: '#3b82f6'
+      },
+      {
+        icon: <FaEnvelope />,
+        value: stats.messages,
+        label: 'Messages non lus',
+        color: '#6366f1'
+      },
+      {
+        icon: <FaChartLine />,
+        value: stats.taches,
+        label: 'Tâches en cours',
+        color: '#8b5cf6'
+      }
+    ];
+  };
 
   if (loading) {
     return <div className="loading">Chargement du tableau de bord...</div>;
@@ -228,65 +240,40 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
 
   return (
     <div className="apercu-content">
-      <div className="apercu-header">
-        <h1>Tableau de bord</h1>
-        <p>Bienvenue sur votre espace {userRole}</p>
-      </div>
-
       <div className="stats-grid">
-        {stats_list.map((stat, index) => (
-          <div key={index} className="stat-card">
-            <div className="stat-icon" style={{ background: `${stat.color}15`, color: stat.color }}>
+        {getStatsList().map((stat, index) => (
+          <div key={index} className="stat-card" style={{ borderColor: stat.color }}>
+            <div className="stat-icon" style={{ color: stat.color }}>
               {stat.icon}
             </div>
-            <div className="stat-info">
-              <h3>{stat.value}</h3>
-              <p>{stat.label}</p>
+            <div className="stat-details">
+              <h3 className="stat-value">{stat.value}</h3>
+              <p className="stat-label">{stat.label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="quick-actions">
-        <h2 className="section-title">Actions rapides</h2>
-        <div className="actions-grid">
-          {actions.map((action, index) => (
-            <div key={index} className="action-card" onClick={action.action}>
-              <div className="action-icon">
-                {action.icon}
-              </div>
-              <div className="action-content">
-                <h3>{action.title}</h3>
-                <p>{action.description}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="recent-activity">
-        <h2 className="section-title">Activité récente</h2>
-        <div className="activity-list">
-          {recentActivity.length > 0 ? (
-            recentActivity.map((activity, index) => (
+        <h2>Activité Récente</h2>
+        {recentActivity.length > 0 ? (
+          <div className="activity-list">
+            {recentActivity.map((activity, index) => (
               <div key={index} className="activity-item">
-                <div 
-                  className="activity-icon" 
-                  style={{ background: `${activity.color}15`, color: activity.color }}
-                >
+                <div className="activity-icon" style={{ color: activity.color }}>
                   {activity.icon}
                 </div>
-                <div className="activity-content">
-                  <h4>{activity.title}</h4>
+                <div className="activity-details">
+                  <h3>{activity.title}</h3>
                   <p>{activity.description}</p>
                   <span className="activity-time">{activity.time}</span>
                 </div>
               </div>
-            ))
-          ) : (
-            <p className="no-activity">Aucune activité récente</p>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="no-activity">Aucune activité récente</p>
+        )}
       </div>
     </div>
   );

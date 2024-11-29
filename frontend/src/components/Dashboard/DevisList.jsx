@@ -3,7 +3,7 @@ import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, Tim
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
-import './DevisList.css';
+import './styles/devis.css';
 
 const DevisList = ({ userType }) => {
   const [devis, setDevis] = useState([]);
@@ -13,10 +13,9 @@ const DevisList = ({ userType }) => {
   const [messageContent, setMessageContent] = useState('');
   const [messageError, setMessageError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   const [devisAmount, setDevisAmount] = useState('');
   const [devisDetails, setDevisDetails] = useState('');
-  const [showDevisForm, setShowDevisForm] = useState(false);
-  const [showMessageForm, setShowMessageForm] = useState(false);
   const { currentUser } = useAuth();
 
   const fetchDevis = useCallback(async () => {
@@ -169,45 +168,43 @@ const DevisList = ({ userType }) => {
 
   const handleSendDevis = async () => {
     try {
-      setIsSubmitting(true);
       setMessageError('');
+      setIsSubmitting(true);
 
-      // Valider le montant et les détails
-      if (!devisAmount || isNaN(devisAmount)) {
-        setMessageError('Veuillez entrer un montant valide.');
+      // Validation du montant
+      if (!devisAmount || isNaN(devisAmount) || devisAmount <= 0) {
+        setMessageError('Veuillez entrer un montant valide');
         return;
       }
 
-      const validation = validateMessageContent(devisDetails);
-      if (!validation.isValid) {
-        setMessageError(validation.error);
+      // Validation des détails
+      if (!devisDetails.trim()) {
+        setMessageError('Veuillez fournir les détails du devis');
         return;
       }
 
-      // Mettre à jour le devis
-      await updateDoc(doc(db, 'devis', selectedDevis.id), {
-        status: 'devis_envoye',
-        montant: Number(devisAmount),
-        details: sanitizeMessageContent(devisDetails),
-        lastUpdated: Timestamp.now(),
-        professionalId: currentUser.uid
-      });
-
-      // Créer un message de notification
-      const messageData = {
-        senderId: currentUser.uid,
-        recipientId: selectedDevis.userId,
-        content: 'Un nouveau devis a été envoyé pour votre demande.',
+      // Créer le devis
+      const devisData = {
+        montant: parseFloat(devisAmount),
+        details: devisDetails.trim(),
         devisId: selectedDevis.id,
-        createdAt: Timestamp.now(),
-        read: false,
-        type: 'devis_envoye',
-        participants: [currentUser.uid, selectedDevis.userId]
+        professionnelId: currentUser.uid,
+        status: 'devis_envoye',
+        createdAt: Timestamp.now()
       };
 
-      await addDoc(collection(db, 'messages'), messageData);
+      // Enregistrer le devis dans Firestore
+      await addDoc(collection(db, 'devis_reponses'), devisData);
 
-      // Réinitialiser et fermer le modal
+      // Mettre à jour le statut du devis original
+      await updateDoc(doc(db, 'devis', selectedDevis.id), {
+        status: 'devis_envoye',
+        lastUpdated: Timestamp.now()
+      });
+
+      // Réinitialiser le formulaire
+      setDevisAmount('');
+      setDevisDetails('');
       setSelectedDevis(null);
       
       // Rafraîchir la liste des devis
@@ -224,128 +221,98 @@ const DevisList = ({ userType }) => {
     if (!selectedDevis) return null;
 
     return (
-      <div className="modal-overlay" onClick={() => setSelectedDevis(null)}>
+      <div className="devis-modal" onClick={() => setSelectedDevis(null)}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <h3>Détails du devis</h3>
             <button className="close-button" onClick={() => setSelectedDevis(null)}>&times;</button>
           </div>
-          
-          <div className="modal-body">
-            {/* Informations du devis */}
-            <div className="devis-details">
-              <div className="detail-row">
-                <strong>Date:</strong>
-                <span>{selectedDevis.createdAt}</span>
-              </div>
-              <div className="detail-row">
-                <strong>Type de projet:</strong>
-                <span>{selectedDevis.typeProjet}</span>
-              </div>
-              <div className="detail-row">
-                <strong>Surface:</strong>
-                <span>{selectedDevis.surface} m²</span>
-              </div>
-              <div className="detail-row">
-                <strong>Description:</strong>
-                <p>{selectedDevis.description}</p>
-              </div>
-              <div className="detail-row">
-                <strong>Ville:</strong>
-                <span>{selectedDevis.ville}</span>
-              </div>
-              {selectedDevis.photos && selectedDevis.photos.length > 0 && (
-                <div className="detail-row">
-                  <strong>Photos:</strong>
-                  <div className="photos-grid">
-                    {selectedDevis.photos.map((photo, index) => (
+          <div className="devis-details">
+            <p><strong>Date:</strong> {selectedDevis.createdAt}</p>
+            <p><strong>Type de projet:</strong> {selectedDevis.typeProjet}</p>
+            <p><strong>Surface:</strong> {selectedDevis.surface} m²</p>
+            <p><strong>Ville:</strong> {selectedDevis.ville}</p>
+            <p><strong>Status:</strong> {getStatusLabel(selectedDevis.status)}</p>
+            <p><strong>Description:</strong> {selectedDevis.description || 'Aucune description'}</p>
+            
+            {selectedDevis.photos && selectedDevis.photos.length > 0 && (
+              <div>
+                <h4>Photos du projet</h4>
+                <div className="devis-images">
+                  {selectedDevis.photos.map((photo, index) => (
+                    <div key={index} className="devis-image-container">
                       <img
-                        key={index}
                         src={photo}
                         alt={`Photo ${index + 1}`}
-                        className="devis-photo"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Actions pour les professionnels */}
-            {userType === 'professionnel' && (
-              <div className="devis-actions">
-                <div className="action-buttons">
-                  <button
-                    className="action-button send-devis"
-                    onClick={() => setShowDevisForm(true)}
-                  >
-                    Envoyer un devis
-                  </button>
-                  <button
-                    className="action-button send-message"
-                    onClick={() => setShowMessageForm(true)}
-                  >
-                    Demander plus d'informations
-                  </button>
-                </div>
-
-                {/* Formulaire de devis */}
-                {showDevisForm && (
-                  <div className="devis-form">
-                    <h4>Envoyer un devis</h4>
-                    <div className="form-group">
-                      <label>Montant (€)</label>
-                      <input
-                        type="number"
-                        value={devisAmount}
-                        onChange={(e) => setDevisAmount(e.target.value)}
-                        min="0"
+                        className="devis-image"
+                        onClick={() => setSelectedImage(photo)}
                       />
                     </div>
-                    <div className="form-group">
-                      <label>Détails du devis</label>
-                      <textarea
-                        value={devisDetails}
-                        onChange={(e) => setDevisDetails(e.target.value)}
-                        placeholder="Détaillez votre devis..."
-                        rows="4"
-                      />
-                    </div>
-                    {messageError && <div className="error-message">{messageError}</div>}
-                    <button
-                      className="submit-button"
-                      onClick={handleSendDevis}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Envoi en cours...' : 'Envoyer le devis'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Formulaire de message */}
-                {showMessageForm && (
-                  <div className="message-form">
-                    <h4>Demander plus d'informations</h4>
-                    <textarea
-                      value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
-                      placeholder="Posez vos questions..."
-                      rows="4"
-                    />
-                    {messageError && <div className="error-message">{messageError}</div>}
-                    <button
-                      className="submit-button"
-                      onClick={handleSendMessage}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Envoi en cours...' : 'Envoyer le message'}
-                    </button>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
             )}
           </div>
+          
+          {userType === 'professionnel' && selectedDevis.status === 'en_attente' && (
+            <div className="message-form">
+              <h4>Envoyer un message</h4>
+              <textarea
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                placeholder="Écrivez votre message ici..."
+              />
+              {messageError && <p className="error-message">{messageError}</p>}
+              <button
+                onClick={handleSendMessage}
+                disabled={isSubmitting || !messageContent.trim()}
+              >
+                Envoyer
+              </button>
+            </div>
+          )}
+          {userType === 'professionnel' && selectedDevis.status === 'en_attente' && (
+            <div className="devis-form">
+              <h4>Envoyer un devis</h4>
+              <input
+                type="number"
+                value={devisAmount}
+                onChange={(e) => setDevisAmount(e.target.value)}
+                placeholder="Montant du devis"
+              />
+              <textarea
+                value={devisDetails}
+                onChange={(e) => setDevisDetails(e.target.value)}
+                placeholder="Détails du devis"
+              />
+              {messageError && <p className="error-message">{messageError}</p>}
+              <button
+                onClick={handleSendDevis}
+                disabled={isSubmitting || !devisAmount || !devisDetails.trim()}
+              >
+                Envoyer
+              </button>
+            </div>
+          )}
         </div>
+      </div>
+    );
+  };
+
+  const renderFullscreenImage = () => {
+    if (!selectedImage) return null;
+
+    return (
+      <div 
+        className="fullscreen-image-modal" 
+        onClick={() => setSelectedImage(null)}
+      >
+        <img 
+          src={selectedImage} 
+          alt="Vue agrandie" 
+          className="fullscreen-image"
+          onClick={e => e.stopPropagation()}
+        />
       </div>
     );
   };
@@ -362,7 +329,11 @@ const DevisList = ({ userType }) => {
     <div className="devis-list">
       <h2>Vos devis</h2>
       {devis.length === 0 ? (
-        <p>Aucun devis trouvé.</p>
+        <div className="no-devis">
+          {userType === 'particulier' 
+            ? "Vous n'avez pas encore reçu de devis. Une fois votre demande traitée, les devis apparaîtront ici." 
+            : "Aucun devis pour le moment"}
+        </div>
       ) : (
         <>
           <table>
@@ -405,6 +376,7 @@ const DevisList = ({ userType }) => {
             </tbody>
           </table>
           {renderModalContent()}
+          {renderFullscreenImage()}
         </>
       )}
     </div>
