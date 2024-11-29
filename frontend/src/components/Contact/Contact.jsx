@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { submitContactForm } from '../../services/contactService';
 import Footer from '../Footer/Footer';
 import './Contact.css';
