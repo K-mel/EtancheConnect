@@ -440,13 +440,6 @@
   font-weight: 500;
 }
 
-.sidebar-nav .icon {
-  margin-right: 0.75rem;
-  font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-}
-
 .sidebar-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -1388,4 +1381,21 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Style spécial pour le bouton Demande de devis */
+.nav-item[data-id="nouveau-devis"] {
+  background-color: #3498db;
+  color: white;
+  margin: 10px 0;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.nav-item[data-id="nouveau-devis"]:hover {
+  background-color: #2980b9;
+  transform: translateY(-2px);
+}
+
+.nav-item[data-id="nouveau-devis"] svg {
+  color: white;
 }

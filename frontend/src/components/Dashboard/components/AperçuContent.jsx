@@ -20,7 +20,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     projets: 0,
     messages: 0,
     utilisateurs: 0,
-    taches: 0
+    taches: 0,
+    devisEnAttente: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           projets: 0,
           messages: 0,
           utilisateurs: 0,
-          taches: 0
+          taches: 0,
+          devisEnAttente: 0
         };
 
         // Pour les administrateurs, récupérer toutes les données
@@ -60,6 +62,14 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           // Compter tous les utilisateurs
           const allUsersSnapshot = await getDocs(collection(db, 'users'));
           statsData.utilisateurs = allUsersSnapshot.size;
+
+          // Compter les devis en attente
+          const devisEnAttenteQuery = query(
+            collection(db, 'devis'),
+            where('status', '==', 'en_attente')
+          );
+          const devisEnAttenteSnapshot = await getDocs(devisEnAttenteQuery);
+          statsData.devisEnAttente = devisEnAttenteSnapshot.size;
 
         } else {
           // Pour les autres utilisateurs, récupérer leurs données spécifiques
@@ -178,21 +188,27 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         },
         {
           icon: <FaFileInvoiceDollar />,
+          value: stats.devisEnAttente,
+          label: 'Devis en attente',
+          color: '#3b82f6'
+        },
+        {
+          icon: <FaFileInvoiceDollar />,
           value: stats.devis,
           label: 'Devis totaux',
-          color: '#3b82f6'
+          color: '#6366f1'
         },
         {
           icon: <FaProjectDiagram />,
           value: stats.projets,
           label: 'Projets totaux',
-          color: '#6366f1'
+          color: '#8b5cf6'
         },
         {
           icon: <FaEnvelope />,
           value: stats.messages,
           label: 'Messages totaux',
-          color: '#8b5cf6'
+          color: '#f59e0b'
         }
       ];
     }

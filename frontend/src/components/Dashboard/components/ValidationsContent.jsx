@@ -1,185 +1,203 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, doc, updateDoc, where } from 'firebase/firestore';
-import { db, auth } from '../../../firebase';
-import { FaCheck, FaTimes, FaEye, FaSpinner } from 'react-icons/fa';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../firebase';
+import { useAuth } from '../../../contexts/AuthContext';
 import '../styles/validations.css';
 
-const ValidationsContent = () => {
-  const [validations, setValidations] = useState([]);
+export default function ValidationsContent() {
+  const [devis, setDevis] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedValidation, setSelectedValidation] = useState(null);
+  const [error, setError] = useState('');
+  const [selectedDevis, setSelectedDevis] = useState(null);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
-    fetchValidations();
+    fetchDevisEnAttente();
   }, []);
 
-  const fetchValidations = async () => {
+  const fetchDevisEnAttente = async () => {
     try {
-      setLoading(true);
-      const validationsRef = collection(db, 'validations');
-      const q = query(validationsRef, where('status', '==', 'pending'));
-      const querySnapshot = await getDocs(q);
+      const q = query(
+        collection(db, 'devis'),
+        where('status', '==', 'en_attente')
+      );
       
-      const validationsData = querySnapshot.docs.map(doc => ({
+      const querySnapshot = await getDocs(q);
+      const devisData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        date: doc.data().createdAt ? new Date(doc.data().createdAt).toLocaleDateString('fr-FR') : 'Date inconnue'
+        createdAt: doc.data().createdAt?.toDate().toLocaleDateString() || 'Date inconnue'
       }));
-      
-      setValidations(validationsData);
-      setError(null);
-    } catch (err) {
-      console.error('Erreur lors de la récupération des validations:', err);
-      setError('Une erreur est survenue lors du chargement des validations.');
+
+      setDevis(devisData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      setError('');
+    } catch (error) {
+      console.error('Erreur lors de la récupération des devis:', error);
+      setError('Une erreur est survenue lors du chargement des devis.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleValidation = async (validationId, action) => {
+  const handleValidateDevis = async (devisId) => {
     try {
-      const validationRef = doc(db, 'validations', validationId);
-      const validation = validations.find(v => v.id === validationId);
+      await updateDoc(doc(db, 'devis', devisId), {
+        status: 'valide',
+        validatedAt: serverTimestamp(),
+        validatedBy: currentUser.uid
+      });
       
-      if (!validation) {
-        throw new Error('Validation non trouvée');
-      }
-
-      const updateData = {
-        status: action === 'approve' ? 'approved' : 'rejected',
-        updatedAt: new Date().toISOString(),
-        processedBy: auth.currentUser?.uid || 'unknown'
-      };
-
-      await updateDoc(validationRef, updateData);
-
-      // Si c'est une validation de devis, mettre à jour le statut du devis
-      if (validation.type === 'devis') {
-        const devisRef = doc(db, 'devis', validation.devisId);
-        await updateDoc(devisRef, {
-          status: action === 'approve' ? 'approved' : 'rejected',
-          updatedAt: new Date().toISOString()
-        });
-      }
-
-      // Rafraîchir la liste des validations
-      await fetchValidations();
-    } catch (err) {
-      console.error('Erreur lors de la validation:', err);
-      setError('Une erreur est survenue lors de la validation.');
+      // Rafraîchir la liste des devis
+      fetchDevisEnAttente();
+      setSelectedDevis(null);
+    } catch (error) {
+      console.error('Erreur lors de la validation du devis:', error);
+      setError('Une erreur est survenue lors de la validation du devis.');
     }
   };
 
-  const handleViewValidation = (validationId) => {
-    const validation = validations.find(v => v.id === validationId);
-    setSelectedValidation(validation);
+  const handleRefuseDevis = async (devisId) => {
+    try {
+      await updateDoc(doc(db, 'devis', devisId), {
+        status: 'refuse',
+        refusedAt: serverTimestamp(),
+        refusedBy: currentUser.uid
+      });
+      
+      // Rafraîchir la liste des devis
+      fetchDevisEnAttente();
+      setSelectedDevis(null);
+    } catch (error) {
+      console.error('Erreur lors du refus du devis:', error);
+      setError('Une erreur est survenue lors du refus du devis.');
+    }
+  };
+
+  const renderDevisDetails = () => {
+    if (!selectedDevis) return null;
+
+    return (
+      <div className="devis-modal">
+        <div className="devis-modal-content">
+          <h3>Détails de la demande de devis</h3>
+          
+          <div className="devis-details">
+            <div className="detail-group">
+              <label>Date de création:</label>
+              <span>{selectedDevis.createdAt}</span>
+            </div>
+            
+            <div className="detail-group">
+              <label>Type de projet:</label>
+              <span>{selectedDevis.typeProjet}</span>
+            </div>
+            
+            <div className="detail-group">
+              <label>Surface:</label>
+              <span>{selectedDevis.surface} m²</span>
+            </div>
+            
+            <div className="detail-group">
+              <label>Ville:</label>
+              <span>{selectedDevis.ville}</span>
+            </div>
+            
+            <div className="detail-group">
+              <label>Description:</label>
+              <p>{selectedDevis.description}</p>
+            </div>
+
+            {selectedDevis.photos && selectedDevis.photos.length > 0 && (
+              <div className="detail-group">
+                <label>Photos:</label>
+                <div className="photos-grid">
+                  {selectedDevis.photos.map((photo, index) => (
+                    <img 
+                      key={index}
+                      src={photo}
+                      alt={`Photo ${index + 1}`}
+                      className="devis-photo"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="modal-actions">
+            <button 
+              className="validate-button"
+              onClick={() => handleValidateDevis(selectedDevis.id)}
+            >
+              Valider
+            </button>
+            <button 
+              className="refuse-button"
+              onClick={() => handleRefuseDevis(selectedDevis.id)}
+            >
+              Refuser
+            </button>
+            <button 
+              className="close-button"
+              onClick={() => setSelectedDevis(null)}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
-    return (
-      <div className="loading-container">
-        <FaSpinner className="spinner" />
-        <p>Chargement des validations...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="error-container">
-        <p>{error}</p>
-        <button onClick={fetchValidations}>Réessayer</button>
-      </div>
-    );
+    return <div className="loading">Chargement des demandes de devis...</div>;
   }
 
   return (
     <div className="validations-content">
-      <h2>Validations en Attente</h2>
+      <h2>Validation des demandes de devis</h2>
       
-      {selectedValidation ? (
-        <div className="validation-details">
-          <h3>Détails de la Validation</h3>
-          <div className="validation-details-content">
-            <p><strong>Type:</strong> {selectedValidation.type}</p>
-            <p><strong>Date:</strong> {selectedValidation.date}</p>
-            <p><strong>Statut:</strong> {selectedValidation.status}</p>
-            {selectedValidation.devisId && (
-              <p><strong>ID Devis:</strong> {selectedValidation.devisId}</p>
-            )}
-            {selectedValidation.description && (
-              <p><strong>Description:</strong> {selectedValidation.description}</p>
-            )}
-            {selectedValidation.amount && (
-              <p><strong>Montant:</strong> {selectedValidation.amount}€</p>
-            )}
-          </div>
-          <div className="validation-details-actions">
-            <button 
-              onClick={() => handleValidation(selectedValidation.id, 'approve')}
-              className="action-button approve"
-            >
-              Approuver
-            </button>
-            <button 
-              onClick={() => handleValidation(selectedValidation.id, 'reject')}
-              className="action-button reject"
-            >
-              Rejeter
-            </button>
-            <button 
-              onClick={() => setSelectedValidation(null)}
-              className="action-button back"
-            >
-              Retour
-            </button>
-          </div>
+      {error && <div className="error-message">{error}</div>}
+      
+      {devis.length === 0 ? (
+        <div className="no-devis">
+          Aucune demande de devis en attente de validation.
         </div>
       ) : (
-        <div className="validations-list">
-          {validations.length === 0 ? (
-            <p className="no-validations">Aucune validation en attente</p>
-          ) : (
-            validations.map((validation) => (
-              <div key={validation.id} className="validation-item">
-                <div className="validation-info">
-                  <span className="validation-type">{validation.type}</span>
-                  <span className="validation-date">{validation.date}</span>
-                  <span className={`validation-status ${validation.status}`}>
-                    {validation.status}
-                  </span>
-                </div>
-                <div className="validation-actions">
-                  <button 
-                    onClick={() => handleValidation(validation.id, 'approve')}
-                    className="action-button approve"
-                    title="Approuver"
-                  >
-                    <FaCheck />
-                  </button>
-                  <button 
-                    onClick={() => handleValidation(validation.id, 'reject')}
-                    className="action-button reject"
-                    title="Rejeter"
-                  >
-                    <FaTimes />
-                  </button>
-                  <button 
-                    onClick={() => handleViewValidation(validation.id)}
-                    className="action-button view"
-                    title="Voir les détails"
-                  >
-                    <FaEye />
-                  </button>
-                </div>
+        <div className="devis-grid">
+          {devis.map((devis) => (
+            <div key={devis.id} className="devis-card">
+              <div className="devis-header">
+                <span className="devis-date">{devis.createdAt}</span>
+                <span className="devis-type">{devis.typeProjet}</span>
               </div>
-            ))
-          )}
+              
+              <div className="devis-body">
+                <div className="devis-info">
+                  <span>Surface: {devis.surface} m²</span>
+                  <span>Ville: {devis.ville}</span>
+                </div>
+                
+                <p className="devis-description">
+                  {devis.description?.substring(0, 100)}
+                  {devis.description?.length > 100 ? '...' : ''}
+                </p>
+              </div>
+              
+              <div className="devis-actions">
+                <button 
+                  className="view-button"
+                  onClick={() => setSelectedDevis(devis)}
+                >
+                  Voir les détails
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
+      
+      {renderDevisDetails()}
     </div>
   );
-};
-
-export default ValidationsContent;
+}

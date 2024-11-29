@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
@@ -19,104 +19,97 @@ const DevisList = ({ userType }) => {
   const { currentUser } = useAuth();
 
   const fetchDevis = useCallback(async () => {
+    setLoading(true);
     try {
-      let devisQuery;
+      let q;
       
-      if (userType === 'particulier') {
-        devisQuery = query(
-          collection(db, 'devis'),
-          where('userId', '==', currentUser.uid),
-          orderBy('createdAt', 'desc')
-        );
-      } else if (userType === 'professionnel') {
-        devisQuery = query(
-          collection(db, 'devis'),
-          where('status', '==', 'en_attente'),
-          orderBy('createdAt', 'desc')
-        );
-      } else if (userType === 'admin') {
-        devisQuery = query(
-          collection(db, 'devis'),
-          orderBy('createdAt', 'desc')
-        );
+      switch (userType) {
+        case 'particulier':
+          // Les particuliers voient tous leurs devis
+          q = query(
+            collection(db, 'devis'),
+            where('userId', '==', currentUser.uid)
+          );
+          break;
+        
+        case 'professionnel':
+          // Les professionnels ne voient que les devis validés par l'admin
+          q = query(
+            collection(db, 'devis'),
+            where('status', '==', 'valide')
+          );
+          break;
+        
+        case 'administrateur':
+          // L'admin voit tous les devis en attente de validation
+          q = query(collection(db, 'devis'));
+          break;
+        
+        default:
+          throw new Error('Type d\'utilisateur non reconnu');
       }
 
-      const querySnapshot = await getDocs(devisQuery);
-      const devisList = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        let formattedDate;
-        
-        if (data.createdAt && data.createdAt.toDate) {
-          try {
-            formattedDate = data.createdAt.toDate().toLocaleDateString('fr-FR', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-          } catch (error) {
-            console.error('Error formatting date:', error);
-            formattedDate = 'Date invalide';
-          }
-        } else {
-          formattedDate = 'Date non disponible';
-        }
+      const querySnapshot = await getDocs(q);
+      const devisData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate().toLocaleDateString() || 'Date inconnue'
+      }));
 
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: formattedDate
-        };
-      });
-
-      setDevis(devisList);
-      setError('');
-    } catch (err) {
-      console.error('Erreur lors de la récupération des devis:', err);
+      // Trier les devis par date de création (du plus récent au plus ancien)
+      setDevis(devisData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+    } catch (error) {
+      console.error('Erreur lors de la récupération des devis:', error);
       setError('Une erreur est survenue lors du chargement des devis.');
     } finally {
       setLoading(false);
     }
-  }, [currentUser, userType]);
-
-  useEffect(() => {
-    if (currentUser && userType) {
-      fetchDevis();
-    }
-  }, [currentUser, userType, fetchDevis]);
+  }, [userType, currentUser]);
 
   const getStatusLabel = (status) => {
     switch (status) {
       case 'en_attente':
-        return 'En attente';
-      case 'attente_reponse':
-        return 'En attente de réponse';
+        return 'En attente de validation';
+      case 'valide':
+        return 'Validé';
+      case 'refuse':
+        return 'Refusé';
       case 'devis_envoye':
         return 'Devis envoyé';
       case 'accepte':
         return 'Accepté';
-      case 'refuse':
-        return 'Refusé';
       default:
         return status;
     }
   };
 
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'en_attente':
-        return 'status en_attente';
-      case 'attente_reponse':
-        return 'status attente_reponse';
-      case 'devis_envoye':
-        return 'status devis_envoye';
-      case 'accepte':
-        return 'status accepte';
-      case 'refuse':
-        return 'status refuse';
-      default:
-        return 'status';
+  const handleValidateDevis = async (devisId) => {
+    try {
+      await updateDoc(doc(db, 'devis', devisId), {
+        status: 'valide',
+        validatedAt: serverTimestamp()
+      });
+      
+      // Rafraîchir la liste des devis
+      fetchDevis();
+    } catch (error) {
+      console.error('Erreur lors de la validation du devis:', error);
+      setError('Une erreur est survenue lors de la validation du devis.');
+    }
+  };
+
+  const handleRefuseDevis = async (devisId) => {
+    try {
+      await updateDoc(doc(db, 'devis', devisId), {
+        status: 'refuse',
+        refusedAt: serverTimestamp()
+      });
+      
+      // Rafraîchir la liste des devis
+      fetchDevis();
+    } catch (error) {
+      console.error('Erreur lors du refus du devis:', error);
+      setError('Une erreur est survenue lors du refus du devis.');
     }
   };
 
@@ -138,7 +131,7 @@ const DevisList = ({ userType }) => {
         recipientId: selectedDevis.userId,
         content: sanitizeMessageContent(messageContent),
         devisId: selectedDevis.id,
-        createdAt: Timestamp.now(),
+        createdAt: serverTimestamp(),
         read: false,
         type: 'devis_question',
         participants: [currentUser.uid, selectedDevis.userId]
@@ -149,7 +142,7 @@ const DevisList = ({ userType }) => {
       // Mettre à jour le statut du devis
       await updateDoc(doc(db, 'devis', selectedDevis.id), {
         status: 'attente_reponse',
-        lastUpdated: Timestamp.now()
+        lastUpdated: serverTimestamp()
       });
 
       // Réinitialiser le formulaire et fermer le modal
@@ -190,7 +183,7 @@ const DevisList = ({ userType }) => {
         devisId: selectedDevis.id,
         professionnelId: currentUser.uid,
         status: 'devis_envoye',
-        createdAt: Timestamp.now()
+        createdAt: serverTimestamp()
       };
 
       // Enregistrer le devis dans Firestore
@@ -199,7 +192,7 @@ const DevisList = ({ userType }) => {
       // Mettre à jour le statut du devis original
       await updateDoc(doc(db, 'devis', selectedDevis.id), {
         status: 'devis_envoye',
-        lastUpdated: Timestamp.now()
+        lastUpdated: serverTimestamp()
       });
 
       // Réinitialiser le formulaire
@@ -215,6 +208,37 @@ const DevisList = ({ userType }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Rendu des actions selon le rôle
+  const renderActions = (devis) => {
+    if (userType === 'administrateur' && devis.status === 'en_attente') {
+      return (
+        <>
+          <button 
+            className="action-button validate"
+            onClick={() => handleValidateDevis(devis.id)}
+          >
+            Valider
+          </button>
+          <button 
+            className="action-button refuse"
+            onClick={() => handleRefuseDevis(devis.id)}
+          >
+            Refuser
+          </button>
+        </>
+      );
+    }
+    
+    return (
+      <button 
+        className="action-button"
+        onClick={() => setSelectedDevis(devis)}
+      >
+        Voir détails
+      </button>
+    );
   };
 
   const renderModalContent = () => {
@@ -317,68 +341,66 @@ const DevisList = ({ userType }) => {
     );
   };
 
-  if (loading) {
-    return <div className="loading">Chargement des devis...</div>;
-  }
-
-  if (error) {
-    return <div className="error-message">{error}</div>;
-  }
+  useEffect(() => {
+    if (currentUser && userType) {
+      fetchDevis();
+    }
+  }, [currentUser, userType, fetchDevis]);
 
   return (
     <div className="devis-list">
-      <h2>Vos devis</h2>
-      {devis.length === 0 ? (
+      <h2>
+        {userType === 'particulier' ? 'Mes devis' : 
+         userType === 'professionnel' ? 'Devis disponibles' : 
+         'Validation des devis'}
+      </h2>
+      
+      {error && <div className="error-message">{error}</div>}
+      
+      {loading ? (
+        <div className="loading">Chargement des devis...</div>
+      ) : devis.length === 0 ? (
         <div className="no-devis">
           {userType === 'particulier' 
-            ? "Vous n'avez pas encore reçu de devis. Une fois votre demande traitée, les devis apparaîtront ici." 
-            : "Aucun devis pour le moment"}
+            ? "Vous n'avez pas encore de devis. Une fois votre demande traitée, les devis apparaîtront ici."
+            : userType === 'professionnel'
+            ? "Aucun devis n'est disponible pour le moment. Les devis apparaîtront ici une fois validés par l'administrateur."
+            : "Aucun devis en attente de validation."}
         </div>
       ) : (
-        <>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Type de projet</th>
-                <th>Surface</th>
-                <th>Ville</th>
-                <th>Status</th>
-                {userType !== 'particulier' && <th>Contact</th>}
-                <th>Actions</th>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type de projet</th>
+              <th>Surface</th>
+              <th>Ville</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {devis.map((devis) => (
+              <tr key={devis.id} className={devis.status}>
+                <td>{devis.createdAt}</td>
+                <td>{devis.typeProjet}</td>
+                <td>{devis.surface} m²</td>
+                <td>{devis.ville}</td>
+                <td>
+                  <span className={`status ${devis.status}`}>
+                    {getStatusLabel(devis.status)}
+                  </span>
+                </td>
+                <td className="actions">
+                  {renderActions(devis)}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {devis.map((devis) => (
-                <tr key={devis.id}>
-                  <td>{devis.createdAt}</td>
-                  <td>{devis.typeProjet}</td>
-                  <td>{devis.surface} m²</td>
-                  <td>{devis.ville}</td>
-                  <td>
-                    <span className={getStatusClass(devis.status)}>
-                      {getStatusLabel(devis.status)}
-                    </span>
-                  </td>
-                  {userType !== 'particulier' && (
-                    <td>{devis.userEmail}</td>
-                  )}
-                  <td>
-                    <button 
-                      className="action-button"
-                      onClick={() => setSelectedDevis(devis)}
-                    >
-                      Voir détails
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {renderModalContent()}
-          {renderFullscreenImage()}
-        </>
+            ))}
+          </tbody>
+        </table>
       )}
+      {renderModalContent()}
+      {renderFullscreenImage()}
     </div>
   );
 };

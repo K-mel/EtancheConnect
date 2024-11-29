@@ -6,7 +6,7 @@ import { db, storage } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import './DevisParticulier.css';
 
-const DevisParticulier = () => {
+const DevisParticulier = ({ onDevisSubmitted }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
@@ -26,6 +26,7 @@ const DevisParticulier = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevState => ({
+
       ...prevState,
       [name]: value
     }));
@@ -33,6 +34,7 @@ const DevisParticulier = () => {
 
   const handleFileChange = (e) => {
     setFormData(prevState => ({
+
       ...prevState,
       photos: Array.from(e.target.files)
     }));
@@ -102,15 +104,15 @@ const DevisParticulier = () => {
         disponibilite: '',
         photos: []
       });
-      
-      // Rediriger vers le dashboard après 2 secondes
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+
+      // Appeler le callback pour rediriger vers l'onglet 'Mes Devis'
+      if (onDevisSubmitted) {
+        onDevisSubmitted();
+      }
 
     } catch (err) {
       console.error('Erreur lors de la soumission du devis:', err);
-      setError(err.message || 'Une erreur est survenue lors de l\'envoi du devis');
+      setError(err.message || 'Une erreur est survenue lors de la soumission du devis.');
     } finally {
       setLoading(false);
     }

@@ -10,7 +10,7 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck } from 'react-icons/fa';
+import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck, FaPlusCircle } from 'react-icons/fa';
 import DevisList from './DevisList';
 import Messages from '../MessagesModule/Messages';
 import ProfileContent from '../Profile/ProfileContent';
@@ -21,6 +21,7 @@ import ValidationsContent from './components/ValidationsContent';
 import StatistiquesContent from './components/StatistiquesContent';
 import DevisContent from './components/DevisContent';
 import MessagesContent from './components/MessagesContent';
+import DevisParticulier from '../DevisParticulier/DevisParticulier';
 import '../../styles/dashboard.css';
 import './styles/statistiques.css';
 
@@ -122,6 +123,11 @@ const Dashboard = () => {
         return [
           ...baseItems,
           {
+            id: 'nouveau-devis',
+            label: 'Demande de devis',
+            icon: <FaPlusCircle />
+          },
+          {
             id: 'devis',
             label: 'Mes Devis',
             icon: <FaFileAlt />
@@ -201,12 +207,14 @@ const Dashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'apercu':
-        return <AperçuContent userRole={userRole} />;
+        return <AperçuContent stats={stats} />;
       case 'devis':
         return <DevisList userType={userRole} />;
+      case 'nouveau-devis':
+        return <DevisParticulier onDevisSubmitted={() => handleTabChange('devis')} />;
       case 'messages':
-        // Seuls les administrateurs utilisent MessagesContent, les autres utilisent Messages
-        return userRole === 'administrateur' ? <MessagesContent /> : <Messages userRole={userRole} />;
+        // Utiliser Messages pour les particuliers et professionnels, MessagesContent uniquement pour les administrateurs
+        return userRole === 'administrateur' ? <MessagesContent /> : <Messages />;
       case 'projets':
         return <ProjetsContent />;
       case 'utilisateurs':
@@ -214,11 +222,11 @@ const Dashboard = () => {
       case 'validations':
         return <ValidationsContent />;
       case 'statistiques':
-        return <StatistiquesContent stats={stats} />;
+        return <StatistiquesContent />;
       case 'profile':
         return <ProfileContent />;
       default:
-        return <AperçuContent userRole={userRole} />;
+        return <AperçuContent stats={stats} />;
     }
   };
 
@@ -241,7 +249,7 @@ const Dashboard = () => {
           <ul>
             {getNavigationItems().map((item) => (
               <li key={item.id} className={activeTab === item.id ? 'active' : ''}>
-                <button onClick={() => handleTabChange(item.id)}>
+                <button onClick={() => item.onClick ? item.onClick() : handleTabChange(item.id)}>
                   <span className="icon">{item.icon}</span>
                   {item.label}
                 </button>
@@ -275,6 +283,7 @@ const Dashboard = () => {
           <h1>
             {activeTab === 'apercu' && 'Tableau de bord'}
             {activeTab === 'devis' && (userRole === 'particulier' ? 'Mes Devis' : 'Devis Reçus')}
+            {activeTab === 'nouveau-devis' && 'Demande de devis'}
             {activeTab === 'messages' && 'Messagerie'}
             {activeTab === 'projets' && 'Mes Projets'}
             {activeTab === 'utilisateurs' && 'Gestion des Utilisateurs'}
