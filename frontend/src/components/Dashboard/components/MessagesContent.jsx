@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase';
 import { collection, query, getDocs, doc, updateDoc, deleteDoc, orderBy, getDoc, where, Timestamp } from 'firebase/firestore';
 import { FaTrash, FaCheck, FaTimes, FaEye } from 'react-icons/fa';
-import '../styles/messages.css';
+import './MessagesContent.css';
 
 const MessagesContent = () => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [selectedSenderId, setSelectedSenderId] = useState(null);
 
   const getUserData = async (userId) => {
     if (!userId) return 'Utilisateur inconnu';
@@ -95,9 +95,6 @@ const MessagesContent = () => {
       const sortedMessages = messagesData.sort((a, b) => b.timestamp - a.timestamp);
       
       setMessages(sortedMessages);
-      if (sortedMessages.length > 0 && !selectedMessage) {
-        setSelectedMessage(sortedMessages[0]);
-      }
     } catch (err) {
       console.error('Erreur lors de la récupération des messages:', err);
       setError('Une erreur est survenue lors du chargement des messages');
@@ -110,44 +107,55 @@ const MessagesContent = () => {
     fetchMessages();
   }, []);
 
-  const handleSelectMessage = (message) => {
-    console.log('Message sélectionné:', message);
-    setSelectedMessage(message);
+  const handleSelectSender = (senderId) => {
+    console.log('Sender selected:', senderId);
+    setSelectedSenderId(senderId === selectedSenderId ? null : senderId);
   };
 
-  const handleApproveMessage = async (messageId) => {
-    try {
-      const messageRef = doc(db, 'messages', messageId);
-      await updateDoc(messageRef, {
-        status: 'approved',
-        approvedAt: Timestamp.now()
-      });
-      
-      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageId));
-      if (selectedMessage?.id === messageId) {
-        setSelectedMessage(null);
+  const groupMessagesBySender = (messages) => {
+    const grouped = messages.reduce((acc, message) => {
+      const key = message.senderId;
+      if (!acc[key]) {
+        acc[key] = {
+          senderId: message.senderId,
+          senderName: message.senderName,
+          messages: []
+        };
       }
-    } catch (err) {
-      console.error('Erreur lors de l\'approbation:', err);
-      alert('Erreur lors de l\'approbation du message');
-    }
+      acc[key].messages.push(message);
+      return acc;
+    }, {});
+    
+    // Trier les groupes par la date du message le plus récent
+    const result = Object.values(grouped).sort((a, b) => {
+      const latestA = Math.max(...a.messages.map(m => m.timestamp.getTime()));
+      const latestB = Math.max(...b.messages.map(m => m.timestamp.getTime()));
+      return latestB - latestA;
+    });
+    
+    console.log('Grouped messages:', result);
+    return result;
   };
 
-  const handleRejectMessage = async (messageId) => {
+  const handleMessageAction = async (message, action) => {
     try {
-      const messageRef = doc(db, 'messages', messageId);
-      await updateDoc(messageRef, {
-        status: 'rejected',
-        rejectedAt: Timestamp.now()
-      });
-      
-      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageId));
-      if (selectedMessage?.id === messageId) {
-        setSelectedMessage(null);
+      const messageRef = doc(db, 'messages', message.id);
+      if (action === 'approve') {
+        await updateDoc(messageRef, {
+          status: 'approved',
+          approvedAt: Timestamp.now()
+        });
+      } else if (action === 'reject') {
+        await updateDoc(messageRef, {
+          status: 'rejected',
+          rejectedAt: Timestamp.now()
+        });
       }
+      
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== message.id));
     } catch (err) {
-      console.error('Erreur lors du rejet:', err);
-      alert('Erreur lors du rejet du message');
+      console.error('Erreur lors de l\'action:', err);
+      alert('Erreur lors de l\'action sur le message');
     }
   };
 
@@ -171,77 +179,58 @@ const MessagesContent = () => {
               <p>Aucun message en attente</p>
             </div>
           ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`conversation-preview ${selectedMessage?.id === message.id ? 'selected' : ''}`}
-                onClick={() => handleSelectMessage(message)}
-              >
-                <div className="conversation-header">
-                  <div className="conversation-participants">
-                    <div className="conversation-sender">De: {message.senderName}</div>
-                    <div className="conversation-receiver">À: {message.receiverName}</div>
-                  </div>
-                  <div className="conversation-time">
-                    {message.timestamp.toLocaleDateString('fr-FR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </div>
+            groupMessagesBySender(messages).map((group) => (
+              <div key={group.senderId} className="sender-group">
+                <div 
+                  className={`sender-group-header ${selectedSenderId === group.senderId ? 'selected' : ''}`}
+                  onClick={() => handleSelectSender(group.senderId)}
+                >
+                  <span className="sender-name">{group.senderName}</span>
+                  <span className="message-count">
+                    {group.messages.length} message{group.messages.length > 1 ? 's' : ''}
+                  </span>
                 </div>
-                <div className="conversation-preview-text">
-                  {message.content}
-                </div>
+                {selectedSenderId === group.senderId && (
+                  <div className="message-list">
+                    {group.messages.map((message) => (
+                      <div key={message.id} className="message-bubble">
+                        <div className="message-info">
+                          <span>À: {message.receiverName}</span>
+                          <span>
+                            {message.timestamp.toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className="message-text">
+                          {message.content}
+                        </div>
+                        <div className="message-actions">
+                          <button
+                            className="action-button approve-button"
+                            onClick={() => handleMessageAction(message, 'approve')}
+                          >
+                            <FaCheck />
+                            Approuver
+                          </button>
+                          <button
+                            className="action-button reject-button"
+                            onClick={() => handleMessageAction(message, 'reject')}
+                          >
+                            <FaTimes />
+                            Rejeter
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
-          )}
-        </div>
-
-        <div className="message-detail">
-          {selectedMessage ? (
-            <>
-              <div className="message-detail-header">
-                <h3>{selectedMessage.senderName}</h3>
-              </div>
-              <div className="message-detail-content">
-                <div className="message-bubble">
-                  <div className="message-info">
-                    <span>{selectedMessage.senderName}</span>
-                    <span>
-                      {selectedMessage.timestamp.toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  </div>
-                  <div className="message-text">{selectedMessage.content}</div>
-                </div>
-                <div className="message-actions">
-                  <button
-                    className="action-button approve-button"
-                    onClick={() => handleApproveMessage(selectedMessage.id)}
-                  >
-                    <FaCheck /> Approuver
-                  </button>
-                  <button
-                    className="action-button reject-button"
-                    onClick={() => handleRejectMessage(selectedMessage.id)}
-                  >
-                    <FaTimes /> Rejeter
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="message-detail-empty">
-              <p>Sélectionnez un message pour voir les détails</p>
-            </div>
           )}
         </div>
       </div>

@@ -218,7 +218,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         icon: <FaFileInvoiceDollar />,
         value: stats.devis,
         label: 'Devis en cours',
-        color: '#10b981'
+        color: '#10b981',
+        onClick: () => handleTabChange('devis')
       },
       {
         icon: <FaProjectDiagram />,
@@ -230,7 +231,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         icon: <FaEnvelope />,
         value: stats.messages,
         label: 'Messages non lus',
-        color: '#6366f1'
+        color: '#6366f1',
+        onClick: () => handleTabChange('messages')
       },
       {
         icon: <FaChartLine />,
@@ -258,7 +260,12 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     <div className="apercu-content">
       <div className="stats-grid">
         {getStatsList().map((stat, index) => (
-          <div key={index} className="stat-card" style={{ borderColor: stat.color }}>
+          <div 
+            key={index} 
+            className="stat-card" 
+            style={{ borderColor: stat.color, cursor: stat.onClick ? 'pointer' : 'default' }}
+            onClick={stat.onClick}
+          >
             <div className="stat-icon" style={{ color: stat.color }}>
               {stat.icon}
             </div>

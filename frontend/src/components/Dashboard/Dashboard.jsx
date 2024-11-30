@@ -207,7 +207,7 @@ const Dashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'apercu':
-        return <AperçuContent stats={stats} />;
+        return <AperçuContent stats={stats} userRole={userRole} handleTabChange={handleTabChange} />;
       case 'devis':
         return <DevisList userType={userRole} />;
       case 'nouveau-devis':
@@ -226,7 +226,7 @@ const Dashboard = () => {
       case 'profile':
         return <ProfileContent />;
       default:
-        return <AperçuContent stats={stats} />;
+        return <AperçuContent stats={stats} userRole={userRole} handleTabChange={handleTabChange} />;
     }
   };
 
@@ -257,19 +257,6 @@ const Dashboard = () => {
             ))}
           </ul>
         </nav>
-        {userRole === 'administrateur' && (
-          <nav className="sidebar-nav">
-            <ul>
-              <li
-                className={`sidebar-item ${activeTab === 'messages' ? 'active' : ''}`}
-                onClick={() => setActiveTab('messages')}
-              >
-                <FaEnvelope className="sidebar-icon" />
-                <span>Messages</span>
-              </li>
-            </ul>
-          </nav>
-        )}
         <div className="sidebar-footer">
           <button onClick={handleLogout} className="logout-button">
             <span className="icon">🚪</span>
