@@ -161,8 +161,12 @@ const MessagesContent = () => {
 
   return (
     <div className="messages-container">
-      <div className="messages-content">
-        <div className="messages-list">
+      {/* Colonne de gauche - Liste des expéditeurs */}
+      <div className="senders-column">
+        <div className="senders-header">
+          <h2>Messages en attente</h2>
+        </div>
+        <div className="senders-list">
           {loading ? (
             <div className="messages-loading">
               <p>Chargement des messages...</p>
@@ -180,59 +184,77 @@ const MessagesContent = () => {
             </div>
           ) : (
             groupMessagesBySender(messages).map((group) => (
-              <div key={group.senderId} className="sender-group">
-                <div 
-                  className={`sender-group-header ${selectedSenderId === group.senderId ? 'selected' : ''}`}
-                  onClick={() => handleSelectSender(group.senderId)}
-                >
+              <div 
+                key={group.senderId} 
+                className={`sender-item ${selectedSenderId === group.senderId ? 'selected' : ''}`}
+                onClick={() => handleSelectSender(group.senderId)}
+              >
+                <div className="sender-info">
                   <span className="sender-name">{group.senderName}</span>
                   <span className="message-count">
                     {group.messages.length} message{group.messages.length > 1 ? 's' : ''}
                   </span>
                 </div>
-                {selectedSenderId === group.senderId && (
-                  <div className="message-list">
-                    {group.messages.map((message) => (
-                      <div key={message.id} className="message-bubble">
-                        <div className="message-info">
-                          <span>À: {message.receiverName}</span>
-                          <span>
-                            {message.timestamp.toLocaleDateString('fr-FR', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                        <div className="message-text">
-                          {message.content}
-                        </div>
-                        <div className="message-actions">
-                          <button
-                            className="action-button approve-button"
-                            onClick={() => handleMessageAction(message, 'approve')}
-                          >
-                            <FaCheck />
-                            Approuver
-                          </button>
-                          <button
-                            className="action-button reject-button"
-                            onClick={() => handleMessageAction(message, 'reject')}
-                          >
-                            <FaTimes />
-                            Rejeter
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             ))
           )}
         </div>
+      </div>
+
+      {/* Colonne de droite - Messages du groupe sélectionné */}
+      <div className="messages-column">
+        {selectedSenderId ? (
+          <>
+            <div className="messages-header">
+              <h2>
+                {groupMessagesBySender(messages).find(g => g.senderId === selectedSenderId)?.senderName}
+              </h2>
+            </div>
+            <div className="messages-view">
+              {groupMessagesBySender(messages)
+                .find(g => g.senderId === selectedSenderId)
+                ?.messages.map((message) => (
+                  <div key={message.id} className="message-bubble">
+                    <div className="message-info">
+                      <span>À: {message.receiverName}</span>
+                      <span>
+                        {message.timestamp.toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <div className="message-text">
+                      {message.content}
+                    </div>
+                    <div className="message-actions">
+                      <button
+                        className="action-button approve-button"
+                        onClick={() => handleMessageAction(message, 'approve')}
+                      >
+                        <FaCheck />
+                        Approuver
+                      </button>
+                      <button
+                        className="action-button reject-button"
+                        onClick={() => handleMessageAction(message, 'reject')}
+                      >
+                        <FaTimes />
+                        Rejeter
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </>
+        ) : (
+          <div className="no-selection">
+            <p>Sélectionnez un expéditeur pour voir ses messages</p>
+          </div>
+        )}
       </div>
     </div>
   );
