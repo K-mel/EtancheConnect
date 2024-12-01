@@ -67,11 +67,11 @@ const Messages = () => {
           where('participants', 'array-contains', currentUser.uid)
         );
       } else if (userRole === 'professionnel') {
-        // Professional sees approved messages and their own pending messages
+        // Professional sees only approved messages
         messagesQuery = query(
           messagesRef,
           where('participants', 'array-contains', currentUser.uid),
-          where('status', 'in', ['approved', 'pending'])
+          where('status', '==', 'approved')
         );
       } else {
         // Particulier sees only approved messages
