@@ -67,17 +67,18 @@ const Messages = () => {
           where('participants', 'array-contains', currentUser.uid)
         );
       } else if (userRole === 'professionnel') {
-        // Professional sees only approved messages
+        // Professional sees approved messages and their own pending messages
         messagesQuery = query(
           messagesRef,
           where('participants', 'array-contains', currentUser.uid),
-          where('status', '==', 'approved')
+          where('status', 'in', ['approved', 'pending'])
         );
       } else {
-        // Particulier sees all their messages (including pending ones)
+        // Particulier sees approved messages and their own pending messages
         messagesQuery = query(
           messagesRef,
-          where('participants', 'array-contains', currentUser.uid)
+          where('participants', 'array-contains', currentUser.uid),
+          where('status', 'in', ['approved', 'pending'])
         );
       }
 
@@ -85,13 +86,18 @@ const Messages = () => {
       const fetchedMessages = [];
       const userIds = new Set();
 
-      // Trier les messages côté client
       querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .forEach((messageData) => {
-          fetchedMessages.push(messageData);
-          if (messageData.senderId) userIds.add(messageData.senderId);
-          if (messageData.receiverId) userIds.add(messageData.receiverId);
+          // Pour les professionnels et particuliers, on montre les messages approuvés 
+          // et leurs propres messages en attente
+          if (userRole === 'administrateur' || 
+              messageData.status === 'approved' || 
+              (messageData.status === 'pending' && messageData.senderId === currentUser.uid)) {
+            fetchedMessages.push(messageData);
+            if (messageData.senderId) userIds.add(messageData.senderId);
+            if (messageData.receiverId) userIds.add(messageData.receiverId);
+          }
         });
 
       // Récupérer les informations des utilisateurs
@@ -399,28 +405,35 @@ const Messages = () => {
     const messageClass = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
     const isPending = message.status === 'pending';
     const isRejected = message.status === 'rejected';
+    const otherUserId = isOwnMessage ? message.receiverId : message.senderId;
+    const otherUser = users[otherUserId];
 
     return (
       <div key={message.id} className={messageClass}>
         <div className="message-content">
           {message.content}
-          {isPending && <span className="pending-badge">En attente de validation</span>}
-          {isRejected && <span className="rejected-badge">Rejeté</span>}
-          {userRole === 'administrateur' && isPending && (
-            <button 
-              className="approve-message-btn"
-              onClick={() => approveMessage(message.id)}
-            >
-              Valider
-            </button>
+          {isPending && (
+            <span className="pending-badge">
+              En attente de validation
+              {userRole === 'professionnel' && " par l'administrateur"}
+            </span>
           )}
+          {isRejected && <span className="rejected-badge">Message rejeté</span>}
           {userRole === 'administrateur' && isPending && (
-            <button 
-              className="reject-message-btn"
-              onClick={() => rejectMessage(message.id)}
-            >
-              Rejeter
-            </button>
+            <div className="admin-actions">
+              <button 
+                className="approve-message-btn"
+                onClick={() => approveMessage(message.id)}
+              >
+                Valider
+              </button>
+              <button 
+                className="reject-message-btn"
+                onClick={() => rejectMessage(message.id)}
+              >
+                Rejeter
+              </button>
+            </div>
           )}
         </div>
         {message.files && message.files.length > 0 && (
@@ -438,8 +451,13 @@ const Messages = () => {
             ))}
           </div>
         )}
-        <div className="message-timestamp">
-          {formatTimestamp(message.timestamp)}
+        <div className="message-info">
+          <div className="message-user">
+            {isOwnMessage ? 'Vous' : otherUser?.displayName || 'Utilisateur inconnu'}
+          </div>
+          <div className="message-timestamp">
+            {formatTimestamp(message.timestamp)}
+          </div>
         </div>
       </div>
     );
