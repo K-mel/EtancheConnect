@@ -74,11 +74,10 @@ const Messages = () => {
           where('status', '==', 'approved')
         );
       } else {
-        // Particulier sees only approved messages
+        // Particulier sees all their messages (including pending ones)
         messagesQuery = query(
           messagesRef,
-          where('participants', 'array-contains', currentUser.uid),
-          where('status', '==', 'approved')
+          where('participants', 'array-contains', currentUser.uid)
         );
       }
 
