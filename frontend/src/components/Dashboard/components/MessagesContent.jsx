@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase';
 import { collection, query, getDocs, doc, updateDoc, deleteDoc, orderBy, getDoc, where, Timestamp, limit, startAfter } from 'firebase/firestore';
 import { FaTrash, FaCheck, FaTimes, FaEye, FaHistory } from 'react-icons/fa';
+import { createMessageNotification } from '../../../services/notificationService';
 import './MessagesContent.css';
 
 const MessagesContent = () => {
@@ -237,6 +238,11 @@ const MessagesContent = () => {
 
   const handleMessageAction = async (message, action) => {
     try {
+      console.log('=== Début de l\'action sur le message ===', {
+        messageId: message.id,
+        action: action
+      });
+  
       const messageRef = doc(db, 'messages', message.id);
       const newStatus = action === 'approve' ? 'approved' : 'rejected';
       const timestamp = Timestamp.now();
@@ -245,7 +251,34 @@ const MessagesContent = () => {
         status: newStatus,
         [action === 'approve' ? 'approvedAt' : 'rejectedAt']: timestamp
       });
-
+  
+      console.log('=== Message mis à jour avec succès ===');
+  
+      // Si le message est approuvé, créer une notification
+      if (action === 'approve') {
+        try {
+          console.log('=== Tentative de création de notification ===', {
+            receiverId: message.receiverId,
+            senderId: message.senderId,
+            messageData: message
+          });
+  
+          const notificationId = await createMessageNotification(
+            message.receiverId,
+            message.senderId,
+            { ...message, status: newStatus },
+            true
+          );
+  
+          console.log('=== Notification créée avec succès ===', {
+            notificationId: notificationId
+          });
+        } catch (notifError) {
+          console.error('=== Erreur lors de la création de la notification ===', notifError);
+          console.error('Stack trace:', notifError.stack);
+        }
+      }
+  
       // Retirer le message de la liste des messages en attente
       setMessages(prevMessages => prevMessages.filter(msg => msg.id !== message.id));
       
@@ -262,7 +295,8 @@ const MessagesContent = () => {
       }
       
     } catch (err) {
-      console.error('Erreur lors de l\'action:', err);
+      console.error('=== Erreur générale lors de l\'action sur le message ===', err);
+      console.error('Stack trace:', err.stack);
       setError(`Une erreur est survenue lors de l'${action === 'approve' ? 'approbation' : 'rejet'} du message`);
     }
   };
@@ -510,14 +544,14 @@ const MessagesContent = () => {
           </div>
 
           <div className="messages-list history">
-            {historyMessages.map((message) => (
-              renderHistoryMessage(message)
+            {historyMessages.map((message, index) => (
+              <div key={`history-${message.id}-${index}`}>
+                {renderHistoryMessage(message)}
+              </div>
             ))}
-
             {historyLoading && (
               <div className="loading">Chargement...</div>
             )}
-
             {hasMore && !historyLoading && (
               <button 
                 className="load-more"
@@ -582,8 +616,10 @@ const MessagesContent = () => {
                 <div className="messages-view">
                   {groupMessagesBySender(messages)
                     .find(g => g.senderId === selectedSenderId)
-                    ?.messages.map((message) => (
-                      renderMessage(message)
+                    ?.messages.map((message, index) => (
+                      <div key={`message-${message.id}-${index}`}>
+                        {renderMessage(message)}
+                      </div>
                     ))}
                 </div>
               </div>

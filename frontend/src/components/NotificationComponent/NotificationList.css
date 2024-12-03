@@ -1,0 +1,118 @@
+.notifications-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.notifications-list {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.notification {
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.3s ease;
+}
+
+.notification:last-child {
+  border-bottom: none;
+}
+
+.notification-wrapper {
+  padding: 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.notification-wrapper.unread {
+  background-color: #f0f7ff;
+  border-left: 4px solid #0066cc;
+}
+
+.notification-wrapper.read {
+  background-color: #f5f5f5;
+  opacity: 0.8;
+}
+
+.notification-item {
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  gap: 0.5rem;
+}
+
+.notification-item h4 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 16px;
+  font-size: 1rem;
+}
+
+.notification-item p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  font-size: 0.9rem;
+}
+
+.notification-item small {
+  color: #888;
+  font-size: 12px;
+  font-size: 0.8rem;
+}
+
+.notification-time {
+  display: block;
+  font-size: 0.8em;
+  color: #999;
+  margin-top: 8px;
+}
+
+.notification-item.question {
+  border-left: 4px solid #4CAF50;
+}
+
+.notification-item.quote {
+  border-left: 4px solid #2196F3;
+}
+
+.notification-item.quote-request {
+  border-left: 4px solid #FF9800;
+}
+
+.notification-item.default {
+  border-left: 4px solid #9E9E9E;
+}
+
+.notification-item.pending-message {
+  border-left: 4px solid #ffc107;
+}
+
+.notification-item.quote-request-validation {
+  border-left: 4px solid #2196f3;
+}
+
+.notification-item.quote-validation {
+  border-left: 4px solid #4caf50;
+}
+
+.notification-wrapper:hover {
+  transform: translateX(5px);
+}

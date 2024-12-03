@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import authService from '../services/authService';
+import { eventBus, LOGOUT_EVENT } from '../utils/eventBus';
 
 const AuthContext = createContext(null);
 
@@ -52,7 +53,22 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    return await authService.logout();
+    try {
+      // Émettre l'événement de déconnexion
+      eventBus.emit(LOGOUT_EVENT);
+      
+      // Nettoyer l'état
+      setCurrentUser(null);
+      setUserRole(null);
+      
+      // Déconnexion
+      await authService.logout();
+      
+      return true;
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+      throw error;
+    }
   };
 
   const resetPassword = async (email) => {

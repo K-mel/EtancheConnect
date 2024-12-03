@@ -1,0 +1,257 @@
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc } from "firebase/firestore";
+import { db } from "../firebase";
+
+const messaging = getMessaging();
+
+// Demander la permission pour les notifications
+export const requestNotificationPermission = async (userId, userRole) => {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      const token = await getToken(messaging, {
+        vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY
+      });
+      
+      // Sauvegarder le token dans Firestore
+      await setDoc(doc(db, "userTokens", userId), {
+        token,
+        userRole,
+        updatedAt: serverTimestamp()
+      });
+      
+      return token;
+    }
+  } catch (error) {
+    console.error("Erreur lors de la demande de permission:", error);
+  }
+};
+
+// Créer une nouvelle notification
+export const createNotification = async (userId, notification) => {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      userId,
+      ...notification,
+      read: false,
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Erreur lors de la création de la notification:", error);
+  }
+};
+
+// Écouter les notifications entrantes
+export const onMessageListener = () => {
+  return new Promise((resolve) => {
+    onMessage(messaging, (payload) => {
+      resolve(payload);
+    });
+  });
+};
+
+// Fonctions spécifiques pour chaque type de notification
+export const sendQuestionNotification = async (particulierId, professionalId, questionData) => {
+  const notification = {
+    type: "NEW_QUESTION",
+    title: "Nouvelle question",
+    message: "Vous avez reçu une nouvelle question",
+    data: questionData,
+    fromUserId: professionalId
+  };
+  await createNotification(particulierId, notification);
+};
+
+export const sendQuoteNotification = async (particulierId, professionalId, quoteData) => {
+  const notification = {
+    type: "NEW_QUOTE",
+    title: "Nouveau devis",
+    message: "Vous avez reçu un nouveau devis",
+    data: quoteData,
+    fromUserId: professionalId
+  };
+  await createNotification(particulierId, notification);
+};
+
+export const sendQuoteRequestNotification = async (professionalId, requestData) => {
+  const notification = {
+    type: "NEW_QUOTE_REQUEST",
+    title: "Nouvelle demande de devis",
+    message: "Une nouvelle demande de devis est disponible",
+    data: requestData
+  };
+  await createNotification(professionalId, notification);
+};
+
+// Récupérer les IDs des administrateurs
+async function getAdminIds() {
+  const q = query(collection(db, "users"), where("role", "==", "administrateur"));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => doc.id);
+}
+
+export const sendAdminNotification = async (type, data) => {
+  const notificationTypes = {
+    NEW_QUOTE_REQUEST: "Nouvelle demande de devis",
+    NEW_MESSAGE: "Nouveau message",
+    NEW_REPORT: "Nouveau signalement",
+    PENDING_SIGNATURE: "Devis en attente de signature",
+    PAYMENT_COMPLETED: "Paiement effectué"
+  };
+
+  const notification = {
+    type,
+    title: notificationTypes[type],
+    message: `Un nouveau ${notificationTypes[type].toLowerCase()} nécessite votre attention`,
+    data
+  };
+
+  // Envoyer à tous les administrateurs
+  const adminIds = await getAdminIds();
+  for (const adminId of adminIds) {
+    await createNotification(adminId, notification);
+  }
+};
+
+export const createMessageNotification = async (receiverId, senderId, messageData, isValidated = false) => {
+  try {
+    // Ne créer la notification que si le message est validé
+    if (!isValidated) {
+      console.log('Message non validé, pas de notification créée');
+      return;
+    }
+
+    console.log('Création de notification avec les données:', {
+      receiverId,
+      senderId,
+      messageData
+    });
+
+    // Récupérer les informations de l'expéditeur
+    const senderDoc = await getDoc(doc(db, 'users', senderId));
+    console.log('Données de l\'expéditeur:', senderDoc.data());
+
+    const senderName = senderDoc.exists() 
+      ? (senderDoc.data().displayName || senderDoc.data().nom || 'Utilisateur') 
+      : 'Utilisateur';
+
+    // Créer l'objet de notification
+    const notification = {
+      type: 'NEW_MESSAGE',
+      title: 'Nouveau message validé',
+      message: `Nouveau message validé de ${senderName}`,
+      userId: receiverId,
+      fromUserId: senderId,
+      messageId: messageData.id,
+      messageContent: messageData.content,
+      createdAt: serverTimestamp(),
+      read: false
+    };
+
+    console.log('Objet notification à créer:', notification);
+
+    // Ajouter la notification à Firestore
+    const notificationRef = await addDoc(collection(db, 'notifications'), notification);
+    console.log('Notification créée avec ID:', notificationRef.id);
+
+    return notificationRef.id;
+  } catch (error) {
+    console.error('Erreur lors de la création de la notification:', error);
+    throw error;
+  }
+};
+
+// Notification pour l'administrateur lors de l'arrivée d'un nouveau message à valider
+export const createPendingMessageNotification = async (senderId, messageData) => {
+  try {
+    // Récupérer les informations de l'expéditeur
+    const senderDoc = await getDoc(doc(db, 'users', senderId));
+    const senderName = senderDoc.exists() 
+      ? (senderDoc.data().displayName || senderDoc.data().nom || 'Utilisateur') 
+      : 'Utilisateur';
+
+    // Créer la notification pour tous les administrateurs
+    const adminIds = await getAdminIds();
+    
+    for (const adminId of adminIds) {
+      const notification = {
+        type: 'PENDING_MESSAGE',
+        title: 'Nouveau message à valider',
+        message: `Nouveau message de ${senderName} en attente de validation`,
+        userId: adminId,
+        fromUserId: senderId,
+        messageId: messageData.id,
+        messageContent: messageData.content,
+        createdAt: serverTimestamp(),
+        read: false
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la création de la notification de message en attente:', error);
+    throw error;
+  }
+};
+
+// Notification pour l'administrateur lors de la validation d'une demande de devis
+export const createQuoteRequestValidationNotification = async (requestData) => {
+  try {
+    const particulierDoc = await getDoc(doc(db, 'users', requestData.particulierId));
+    const particulierName = particulierDoc.exists() 
+      ? (particulierDoc.data().displayName || particulierDoc.data().nom || 'Utilisateur') 
+      : 'Utilisateur';
+
+    // Notifier tous les administrateurs
+    const adminIds = await getAdminIds();
+    
+    for (const adminId of adminIds) {
+      const notification = {
+        type: 'QUOTE_REQUEST_VALIDATION',
+        title: 'Nouvelle demande de devis à valider',
+        message: `Demande de devis de ${particulierName} en attente de validation`,
+        userId: adminId,
+        fromUserId: requestData.particulierId,
+        requestId: requestData.id,
+        createdAt: serverTimestamp(),
+        read: false
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la création de la notification de demande de devis:', error);
+    throw error;
+  }
+};
+
+// Notification pour l'administrateur lors de la validation d'un devis
+export const createQuoteValidationNotification = async (quoteData) => {
+  try {
+    const professionalDoc = await getDoc(doc(db, 'users', quoteData.professionalId));
+    const professionalName = professionalDoc.exists() 
+      ? (professionalDoc.data().displayName || professionalDoc.data().companyName || 'Professionnel') 
+      : 'Professionnel';
+
+    // Notifier tous les administrateurs
+    const adminIds = await getAdminIds();
+    
+    for (const adminId of adminIds) {
+      const notification = {
+        type: 'QUOTE_VALIDATION',
+        title: 'Nouveau devis à valider',
+        message: `Devis de ${professionalName} en attente de validation`,
+        userId: adminId,
+        fromUserId: quoteData.professionalId,
+        quoteId: quoteData.id,
+        createdAt: serverTimestamp(),
+        read: false
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la création de la notification de validation de devis:', error);
+    throw error;
+  }
+};

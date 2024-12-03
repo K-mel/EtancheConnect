@@ -22,6 +22,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
 import { FaEnvelope } from 'react-icons/fa';
 import './Messages.css';
+import { createMessageNotification, createPendingMessageNotification } from '../../services/notificationService';
+
 
 const Messages = () => {
   const { currentUser } = useAuth();
@@ -141,7 +143,7 @@ const Messages = () => {
         }
       });
 
-      console.log('Messages chargés:', newMessages.length);
+      //console.log('Messages chargés:', newMessages.length);
       setMessages(newMessages);
 
     } catch (error) {
@@ -233,16 +235,16 @@ const Messages = () => {
     if (!currentUser) return;
 
     const files = Array.from(event.target.files);
-    console.log("Fichiers sélectionnés:", files);
+   // console.log("Fichiers sélectionnés:", files);
     
     const validFiles = files.filter(file => {
       const isValid = file.type.startsWith('image/');
       const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB max
-      console.log("Vérification du fichier:", file.name, "Type:", file.type, "Taille:", file.size);
+     // console.log("Vérification du fichier:", file.name, "Type:", file.type, "Taille:", file.size);
       return isValid && isValidSize;
     });
 
-    console.log("Fichiers valides:", validFiles);
+  //  console.log("Fichiers valides:", validFiles);
 
     if (validFiles.length !== files.length) {
       setMessageError("Certains fichiers ont été ignorés. Seules les images de moins de 5MB sont acceptées.");
@@ -299,7 +301,15 @@ const Messages = () => {
         messageData.files = uploadedFiles;
       }
 
-      await addDoc(collection(db, 'messages'), messageData);
+      // Ajouter le message à Firestore
+      const docRef = await addDoc(collection(db, 'messages'), messageData);
+      
+      // Créer une notification pour l'administrateur
+      await createPendingMessageNotification(currentUser.uid, { 
+        ...messageData, 
+        id: docRef.id 
+      });
+
       setNewMessage('');
       setSelectedFiles([]);
       setMessageError('');
@@ -316,37 +326,75 @@ const Messages = () => {
     } finally {
       setIsSending(false);
     }
-  };
+};
 
-  const approveMessage = async (messageId) => {
-    try {
-      const messageRef = doc(db, 'messages', messageId);
-      const messageDoc = await getDoc(messageRef);
-      
-      if (!messageDoc.exists()) {
-        console.error('Message non trouvé');
-        return;
-      }
-
-      await updateDoc(messageRef, {
-        status: 'approved',
-        approvedAt: serverTimestamp()
-      });
-
-      // Refresh messages for admin
-      if (userRole === 'administrateur') {
-        await fetchMessages(userRole);
-        await fetchPendingMessages();
-      }
-
-      setMessageError('Message approuvé avec succès');
-      setTimeout(() => setMessageError(''), 3000);
-    } catch (error) {
-      console.error('Erreur lors de la validation du message:', error);
-      setMessageError('Erreur lors de la validation du message');
+// Dans Messages.jsx
+const approveMessage = async (messageId) => {
+  try {
+    console.log('=== Début de l\'approbation ===');
+    console.log('messageId:', messageId);
+    
+    const messageRef = doc(db, 'messages', messageId);
+    const messageSnapshot = await getDoc(messageRef);
+    
+    if (!messageSnapshot.exists()) {
+      console.error('Message non trouvé');
+      return;
     }
-  };
 
+    const messageData = messageSnapshot.data();
+    console.log('=== Données complètes du message ===', {
+      id: messageId,
+      ...messageData,
+      createdAt: messageData.createdAt?.toDate?.(),
+      receiverId: messageData.receiverId,
+      senderId: messageData.senderId,
+      content: messageData.content
+    });
+
+    // Vérifier que nous avons bien les IDs nécessaires
+    if (!messageData.receiverId || !messageData.senderId) {
+      console.error('Message invalide - IDs manquants:', messageData);
+      return;
+    }
+
+    await updateDoc(messageRef, {
+      status: 'approved',
+      approvedAt: serverTimestamp()
+    });
+
+    try {
+      console.log('=== Tentative de création de notification ===');
+      console.log('receiverId:', messageData.receiverId);
+      console.log('senderId:', messageData.senderId);
+      console.log('messageData:', { ...messageData, id: messageId });
+      
+      const notificationId = await createMessageNotification(
+        messageData.receiverId,
+        messageData.senderId,
+        { ...messageData, id: messageId },
+        true
+      );
+      console.log('=== Notification créée avec succès ===');
+      console.log('notificationId:', notificationId);
+    } catch (notifError) {
+      console.error('=== Erreur de notification ===', notifError);
+      console.error('Stack trace:', notifError.stack);
+    }
+
+    // Refresh messages for admin
+    if (userRole === 'administrateur') {
+      await fetchMessages(userRole);
+      await fetchPendingMessages();
+    }
+
+    setMessageError('Message approuvé avec succès');
+  } catch (error) {
+    console.error('=== Erreur générale ===', error);
+    console.error('Stack trace:', error.stack);
+    setMessageError('Erreur lors de l\'approbation du message');
+  }
+};
   const rejectMessage = async (messageId) => {
     try {
       const messageRef = doc(db, 'messages', messageId);
@@ -628,10 +676,10 @@ const Messages = () => {
     return <div className="loading">Chargement des messages...</div>;
   }
 
-  console.log('Current messages state:', messages); // Debug log
+  //console.log('Current messages state:', messages); // Debug log
   // Group messages only once during render
   const professionalGroups = messages && Array.isArray(messages) ? groupMessagesByProfessional(messages) : {};
-  console.log('Professional groups:', professionalGroups); // Debug log
+  //console.log('Professional groups:', professionalGroups); // Debug log
 
   return (
     <div className="messages-container">

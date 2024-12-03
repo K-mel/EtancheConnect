@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
@@ -18,7 +18,42 @@ const DevisList = ({ userType }) => {
   const [devisDetails, setDevisDetails] = useState('');
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [questionContent, setQuestionContent] = useState('');
+  const [devisWithMessages, setDevisWithMessages] = useState(new Set());
   const { currentUser } = useAuth();
+
+  const setupMessagesListener = useCallback(() => {
+    if (!currentUser || userType !== 'professionnel') return;
+
+    const messagesRef = collection(db, 'messages');
+    const q = query(
+      messagesRef,
+      where('senderId', '==', currentUser.uid),
+      where('type', '==', 'question')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const activeMessages = new Set();
+      snapshot.forEach((doc) => {
+        const messageData = doc.data();
+        // Vérification du statut deleted dans le code plutôt que dans la requête
+        if (messageData.devisId && messageData.deleted !== true) {
+          activeMessages.add(messageData.devisId);
+        }
+      });
+      setDevisWithMessages(activeMessages);
+    }, (error) => {
+      console.error("Erreur lors de l'écoute des messages:", error);
+    });
+  }, [currentUser, userType]);
+
+  useEffect(() => {
+    const unsubscribe = setupMessagesListener();
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [setupMessagesListener]);
 
   const fetchDevis = useCallback(async () => {
     setLoading(true);
@@ -27,7 +62,6 @@ const DevisList = ({ userType }) => {
       
       switch (userType) {
         case 'particulier':
-          // Les particuliers voient tous leurs devis
           q = query(
             collection(db, 'devis'),
             where('userId', '==', currentUser.uid)
@@ -35,7 +69,6 @@ const DevisList = ({ userType }) => {
           break;
         
         case 'professionnel':
-          // Les professionnels ne voient que les devis validés par l'admin
           q = query(
             collection(db, 'devis'),
             where('status', '==', 'valide')
@@ -43,7 +76,6 @@ const DevisList = ({ userType }) => {
           break;
         
         case 'administrateur':
-          // L'admin voit tous les devis en attente de validation
           q = query(collection(db, 'devis'));
           break;
         
@@ -53,14 +85,13 @@ const DevisList = ({ userType }) => {
 
       const querySnapshot = await getDocs(q);
       const devisData = querySnapshot.docs.map(doc => ({
-
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate().toLocaleDateString() || 'Date inconnue'
       }));
 
-      // Trier les devis par date de création (du plus récent au plus ancien)
-      setDevis(devisData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      const sortedDevis = devisData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setDevis(sortedDevis);
     } catch (error) {
       console.error('Erreur lors de la récupération des devis:', error);
       setError('Une erreur est survenue lors du chargement des devis.');
@@ -232,7 +263,8 @@ const DevisList = ({ userType }) => {
         role: 'professionnel',
         status: 'en_attente_validation',
         type: 'question',
-        participants: [currentUser.uid, particulierId]
+        participants: [currentUser.uid, particulierId],
+        deleted: false
       };
 
       await addDoc(collection(db, 'messages'), messageData);
@@ -435,7 +467,7 @@ const DevisList = ({ userType }) => {
                 </td>
                 <td className="actions">
                   {renderActions(devis)}
-                  {userType === 'professionnel' && (
+                  {userType === 'professionnel' && !devisWithMessages.has(devis.id) && (
                     <button
                       onClick={() => {
                         setSelectedDevis(devis);
