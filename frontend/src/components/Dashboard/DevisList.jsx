@@ -271,7 +271,27 @@ const DevisList = ({ userType }) => {
         deleted: false
       };
 
-      await addDoc(collection(db, 'messages'), messageData);
+      const messageRef = await addDoc(collection(db, 'messages'), messageData);
+
+      const notificationData = {
+        type: 'NEW_MESSAGE',  // Utiliser un des types existants
+        title: 'Nouveau message à valider',
+        message: `Un professionnel a posé une question sur un devis : "${questionContent.substring(0, 50)}${questionContent.length > 50 ? '...' : ''}"`,
+        devisId: devisId,
+        messageId: messageRef.id,
+        senderId: currentUser.uid,
+        senderRole: 'professionnel',
+        userId: 'YnxY2NZj9lNYAXZVqzAc5mY7AHy1',
+        receiverId: 'YnxY2NZj9lNYAXZVqzAc5mY7AHy1',
+        messageContent: questionContent,
+        createdAt: serverTimestamp(),
+        read: false,
+        status: 'unread',
+        requiresAction: true
+      };
+      
+
+      await addDoc(collection(db, 'notifications'), notificationData);
 
       // Réinitialiser le formulaire
       setQuestionContent('');
@@ -287,7 +307,6 @@ const DevisList = ({ userType }) => {
       setIsSubmitting(false);
     }
   };
-
   // Rendu des actions selon le rôle
   const renderActions = (devis) => {
     if (userType === 'administrateur' && devis.status === 'en_attente') {
