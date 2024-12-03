@@ -289,3 +289,42 @@ export const createQuoteRequestValidatedNotification = async (devisData) => {
     throw error;
   }
 };
+
+// Notification pour les professionnels quand une nouvelle demande de devis est validée
+export const notifyProfessionalsNewQuoteRequest = async (devisData) => {
+  try {
+    // Récupérer tous les professionnels
+    const professionalQuery = query(
+      collection(db, 'users'),
+      where('role', '==', 'professionnel')
+    );
+    
+    const professionalSnapshot = await getDocs(professionalQuery);
+    
+    // Créer une notification pour chaque professionnel
+    const notificationPromises = professionalSnapshot.docs.map(professionalDoc => {
+      const notification = {
+        type: 'NEW_QUOTE_REQUEST',
+        title: 'Nouvelle demande de devis disponible',
+        message: `Une nouvelle demande de devis pour des travaux d'${devisData.typeProjet} est disponible. Surface: ${devisData.surface}m² à ${devisData.ville}`,
+        userId: professionalDoc.id,
+        quoteId: devisData.id,
+        createdAt: serverTimestamp(),
+        read: false,
+        data: {
+          devisId: devisData.id,
+          type: devisData.typeProjet,
+          surface: devisData.surface,
+          ville: devisData.ville
+        }
+      };
+
+      return addDoc(collection(db, 'notifications'), notification);
+    });
+
+    await Promise.all(notificationPromises);
+  } catch (error) {
+    console.error('Erreur lors de la notification des professionnels:', error);
+    throw error;
+  }
+};

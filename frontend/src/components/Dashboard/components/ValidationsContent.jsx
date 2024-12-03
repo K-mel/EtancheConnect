@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase-config';
 import { useAuth } from '../../../contexts/AuthContext';
-import { createQuoteRequestValidatedNotification } from '../../../services/notificationService';
+import { createQuoteRequestValidatedNotification, notifyProfessionalsNewQuoteRequest } from '../../../services/notificationService';
 import '../styles/validations.css';
 
 export default function ValidationsContent() {
@@ -49,11 +49,14 @@ export default function ValidationsContent() {
         validatedBy: currentUser.uid
       });
 
-      // Récupérer les données du devis pour la notification
+      // Récupérer les données du devis pour les notifications
       const devisDoc = devis.find(d => d.id === devisId);
       if (devisDoc) {
         // Créer une notification pour le particulier
         await createQuoteRequestValidatedNotification(devisDoc);
+        
+        // Notifier tous les professionnels
+        await notifyProfessionalsNewQuoteRequest(devisDoc);
       }
       
       // Rafraîchir la liste des devis
