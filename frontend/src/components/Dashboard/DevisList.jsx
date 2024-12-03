@@ -87,10 +87,14 @@ const DevisList = ({ userType }) => {
       const devisData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate().toLocaleDateString() || 'Date inconnue'
+        createdAt: doc.data().createdAt?.toDate().toLocaleString() || 'Date inconnue'
       }));
 
-      const sortedDevis = devisData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const sortedDevis = devisData.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return dateB - dateA;
+      });
       setDevis(sortedDevis);
     } catch (error) {
       console.error('Erreur lors de la récupération des devis:', error);
