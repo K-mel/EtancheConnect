@@ -4,6 +4,7 @@ import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/fires
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { createQuoteRequestValidationNotification } from '../../services/notificationService';
 import './DevisParticulier.css';
 
 const DevisParticulier = ({ onDevisSubmitted }) => {
@@ -90,6 +91,16 @@ const DevisParticulier = ({ onDevisSubmitted }) => {
       await setDoc(doc(db, 'users', currentUser.uid, 'devis', devisRef.id), {
         ...devisData,
         mainDevisId: devisRef.id // Référence vers le document principal
+      });
+
+      // Créer une notification pour les administrateurs
+      await createQuoteRequestValidationNotification({
+        id: devisRef.id,
+        particulierId: currentUser.uid,
+        type: formData.typeProjet,
+        surface: formData.surface,
+        ville: formData.ville,
+        status: 'pending'
       });
 
       setSuccess(true);

@@ -202,23 +202,37 @@ export const createQuoteRequestValidationNotification = async (requestData) => {
       ? (particulierDoc.data().displayName || particulierDoc.data().nom || 'Utilisateur') 
       : 'Utilisateur';
 
-    // Notifier tous les administrateurs
-    const adminIds = await getAdminIds();
+    // Récupérer tous les administrateurs
+    const adminQuery = query(
+      collection(db, 'users'),
+      where('role', '==', 'administrateur')
+    );
     
-    for (const adminId of adminIds) {
+    const adminSnapshot = await getDocs(adminQuery);
+    
+    // Créer une notification pour chaque administrateur
+    const notificationPromises = adminSnapshot.docs.map(adminDoc => {
       const notification = {
         type: 'QUOTE_REQUEST_VALIDATION',
         title: 'Nouvelle demande de devis à valider',
-        message: `Demande de devis de ${particulierName} en attente de validation`,
-        userId: adminId,
+        message: `Demande de devis de ${particulierName} - ${requestData.type} - ${requestData.surface}m² à ${requestData.ville}`,
+        userId: adminDoc.id,
         fromUserId: requestData.particulierId,
         requestId: requestData.id,
         createdAt: serverTimestamp(),
-        read: false
+        read: false,
+        data: {
+          devisId: requestData.id,
+          type: requestData.type,
+          surface: requestData.surface,
+          ville: requestData.ville
+        }
       };
 
-      await addDoc(collection(db, 'notifications'), notification);
-    }
+      return addDoc(collection(db, 'notifications'), notification);
+    });
+
+    await Promise.all(notificationPromises);
   } catch (error) {
     console.error('Erreur lors de la création de la notification de demande de devis:', error);
     throw error;
