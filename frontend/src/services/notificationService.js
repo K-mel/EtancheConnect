@@ -269,3 +269,23 @@ export const createQuoteValidationNotification = async (quoteData) => {
     throw error;
   }
 };
+
+// Notification pour le particulier quand sa demande de devis est validée
+export const createQuoteRequestValidatedNotification = async (devisData) => {
+  try {
+    const notification = {
+      type: 'QUOTE_REQUEST_VALIDATED',
+      title: 'Votre demande de devis a été validée',
+      message: `Votre demande de devis pour ${devisData.typeProjet} (${devisData.surface}m² à ${devisData.ville}) a été validée. Elle est maintenant visible par les professionnels qui pourront vous faire une proposition.`,
+      userId: devisData.userId,
+      quoteId: devisData.id,
+      createdAt: serverTimestamp(),
+      read: false
+    };
+
+    await addDoc(collection(db, 'notifications'), notification);
+  } catch (error) {
+    console.error('Erreur lors de la création de la notification pour le particulier:', error);
+    throw error;
+  }
+};

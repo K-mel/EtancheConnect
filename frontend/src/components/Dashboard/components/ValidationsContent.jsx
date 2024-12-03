@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase-config';
 import { useAuth } from '../../../contexts/AuthContext';
-import { createQuoteRequestValidationNotification } from '../../../services/notificationService';
+import { createQuoteRequestValidatedNotification } from '../../../services/notificationService';
 import '../styles/validations.css';
 
 export default function ValidationsContent() {
@@ -30,17 +30,6 @@ export default function ValidationsContent() {
         createdAt: doc.data().createdAt?.toDate().toLocaleDateString() || 'Date inconnue'
       }));
 
-      // Créer une notification pour chaque devis en attente
-      for (const devis of devisData) {
-        await createQuoteRequestValidationNotification({
-          id: devis.id,
-          particulierId: devis.userId,
-          type: devis.typeProjet,
-          surface: devis.surface,
-          ville: devis.ville
-        });
-      }
-
       setDevis(devisData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       setError('');
     } catch (error) {
@@ -53,11 +42,19 @@ export default function ValidationsContent() {
 
   const handleValidateDevis = async (devisId) => {
     try {
-      await updateDoc(doc(db, 'devis', devisId), {
+      const devisRef = doc(db, 'devis', devisId);
+      await updateDoc(devisRef, {
         status: 'valide',
         validatedAt: serverTimestamp(),
         validatedBy: currentUser.uid
       });
+
+      // Récupérer les données du devis pour la notification
+      const devisDoc = devis.find(d => d.id === devisId);
+      if (devisDoc) {
+        // Créer une notification pour le particulier
+        await createQuoteRequestValidatedNotification(devisDoc);
+      }
       
       // Rafraîchir la liste des devis
       fetchDevisEnAttente();
