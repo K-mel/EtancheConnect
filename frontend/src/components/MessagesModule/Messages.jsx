@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  writeBatch, 
+  serverTimestamp, 
+  arrayUnion 
+} from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,6 +38,9 @@ const Messages = () => {
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deletedConversations, setDeletedConversations] = useState([]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -51,78 +69,141 @@ const Messages = () => {
     initializeMessages();
   }, [currentUser, navigate]);
 
+  useEffect(() => {
+    const loadDeletedMessages = async () => {
+      if (currentUser) {
+        const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
+        const deletedMessagesDoc = await getDoc(deletedMessagesRef);
+        if (deletedMessagesDoc.exists()) {
+          const deletedData = deletedMessagesDoc.data();
+          setDeletedConversations(deletedData.deletedConversations || []);
+        }
+      }
+    };
+
+    loadDeletedMessages();
+  }, [currentUser]);
+
   const fetchMessages = async (userRole) => {
     if (!currentUser) return;
 
     try {
       setLoading(true);
+      setMessageError(null);
+
+      // Fetch all users first
+      const usersRef = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersRef);
+      const usersData = {};
+      usersSnapshot.forEach((doc) => {
+        usersData[doc.id] = { id: doc.id, ...doc.data() };
+      });
+      setUsers(usersData);
+
+      // Récupérer la liste des conversations supprimées par l'utilisateur
+      const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
+      const deletedMessagesDoc = await getDoc(deletedMessagesRef);
+      const deletedConvs = deletedMessagesDoc.exists() 
+        ? deletedMessagesDoc.data().deletedConversations || []
+        : [];
+      
+      // Mettre à jour l'état local des conversations supprimées
+      setDeletedConversations(deletedConvs);
+
+      // Requête pour récupérer les messages
       const messagesRef = collection(db, 'messages');
-      
-      let messagesQuery;
-      
+      let q;
+
       if (userRole === 'administrateur') {
-        // Admin sees all messages
-        messagesQuery = query(
+        q = query(messagesRef);
+      } else {
+        q = query(
           messagesRef,
           where('participants', 'array-contains', currentUser.uid)
         );
-      } else if (userRole === 'professionnel') {
-        // Professional sees approved messages and their own pending messages
-        messagesQuery = query(
-          messagesRef,
-          where('participants', 'array-contains', currentUser.uid),
-          where('status', 'in', ['approved', 'pending'])
-        );
-      } else {
-        // Particulier sees approved messages and their own pending messages
-        messagesQuery = query(
-          messagesRef,
-          where('participants', 'array-contains', currentUser.uid),
-          where('status', 'in', ['approved', 'pending'])
-        );
       }
 
-      const querySnapshot = await getDocs(messagesQuery);
-      const fetchedMessages = [];
-      const userIds = new Set();
+      const querySnapshot = await getDocs(q);
+      const newMessages = [];
 
-      querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .forEach((messageData) => {
-          // Pour les professionnels et particuliers, on montre les messages approuvés 
-          // et leurs propres messages en attente
-          if (userRole === 'administrateur' || 
-              messageData.status === 'approved' || 
-              (messageData.status === 'pending' && messageData.senderId === currentUser.uid)) {
-            fetchedMessages.push(messageData);
-            if (messageData.senderId) userIds.add(messageData.senderId);
-            if (messageData.receiverId) userIds.add(messageData.receiverId);
-          }
+      querySnapshot.forEach((doc) => {
+        const messageData = doc.data();
+        const otherUserId = messageData.senderId === currentUser.uid 
+          ? messageData.receiverId 
+          : messageData.senderId;
+        
+        // Ne pas inclure les messages des conversations supprimées
+        if (!deletedConvs.includes(otherUserId)) {
+          newMessages.push({
+            id: doc.id,
+            ...messageData
+          });
+        }
+      });
+
+      console.log('Messages chargés:', newMessages.length);
+      setMessages(newMessages);
+
+    } catch (error) {
+      console.error("Erreur lors du chargement des messages:", error);
+      setMessageError("Une erreur est survenue lors du chargement des messages");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConversation = async (proId) => {
+    try {
+      // Créer ou mettre à jour le document de messages supprimés de l'utilisateur
+      const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
+      const deletedMessagesDoc = await getDoc(deletedMessagesRef);
+      
+      // Préparer la nouvelle liste des conversations supprimées
+      let newDeletedConversations = [];
+      
+      if (deletedMessagesDoc.exists()) {
+        const existingDeleted = deletedMessagesDoc.data().deletedConversations || [];
+        if (!existingDeleted.includes(proId)) {
+          newDeletedConversations = [...existingDeleted, proId];
+          await updateDoc(deletedMessagesRef, {
+            deletedConversations: newDeletedConversations,
+            updatedAt: serverTimestamp()
+          });
+        }
+      } else {
+        newDeletedConversations = [proId];
+        await setDoc(deletedMessagesRef, {
+          deletedConversations: newDeletedConversations,
+          userId: currentUser.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
+      }
 
-      // Récupérer les informations des utilisateurs
-      const usersData = {};
-      for (const userId of userIds) {
-        if (userId !== currentUser.uid) {
-          const userDoc = await getDoc(doc(db, 'users', userId));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            usersData[userId] = {
-              ...userData,
-              displayName: userData.role === 'particulier' 
-                ? userData.nom 
-                : userData.displayName
-            };
-          }
+      // Mettre à jour l'état local
+      setDeletedConversations(newDeletedConversations);
+      
+      // Filtrer les messages
+      setMessages(prevMessages => 
+        prevMessages.filter(msg => {
+          const autreUtilisateur = msg.senderId === currentUser.uid ? msg.receiverId : msg.senderId;
+          return autreUtilisateur !== proId;
+        })
+      );
+
+      // Réinitialiser le message sélectionné si nécessaire
+      if (selectedMessage) {
+        const autreUtilisateur = selectedMessage.senderId === currentUser.uid 
+          ? selectedMessage.receiverId 
+          : selectedMessage.senderId;
+        if (autreUtilisateur === proId) {
+          setSelectedMessage(null);
         }
       }
 
-      setUsers(usersData);
-      setMessages(fetchedMessages);
     } catch (error) {
-      console.error("Erreur lors de la récupération des messages:", error);
-    } finally {
-      setLoading(false);
+      console.error('Erreur lors de la suppression de la conversation:', error);
+      setMessageError('Erreur lors de la suppression de la conversation');
     }
   };
 
@@ -152,11 +233,16 @@ const Messages = () => {
     if (!currentUser) return;
 
     const files = Array.from(event.target.files);
+    console.log("Fichiers sélectionnés:", files);
+    
     const validFiles = files.filter(file => {
       const isValid = file.type.startsWith('image/');
       const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB max
+      console.log("Vérification du fichier:", file.name, "Type:", file.type, "Taille:", file.size);
       return isValid && isValidSize;
     });
+
+    console.log("Fichiers valides:", validFiles);
 
     if (validFiles.length !== files.length) {
       setMessageError("Certains fichiers ont été ignorés. Seules les images de moins de 5MB sont acceptées.");
@@ -330,8 +416,13 @@ const Messages = () => {
     });
   };
 
-  const groupMessagesByProfessional = () => {
+  const groupMessagesByProfessional = (messages) => {
     const groups = {};
+    
+    // Add null check and ensure messages is an array
+    if (!messages || !Array.isArray(messages)) {
+      return {};
+    }
     
     messages.forEach(message => {
       const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
@@ -400,10 +491,48 @@ const Messages = () => {
     return new Date(timestamp).toLocaleString();
   };
 
+  const MessageStatus = ({ status }) => {
+    const getStatusStyle = (status) => {
+      switch (status) {
+        case 'approved':
+          return 'status-badge approved';
+        case 'pending':
+          return 'status-badge pending';
+        case 'rejected':
+          return 'status-badge rejected';
+        case 'en_attente_validation':
+          return 'status-badge pending';
+        default:
+          return 'status-badge';
+      }
+    };
+
+    const getStatusIcon = (status) => {
+      switch (status) {
+        case 'approved':
+          return '✓';
+        case 'pending':
+          return '⌛';
+        case 'rejected':
+          return '✕';
+        case 'en_attente_validation':
+          return '⌛';
+        default:
+          return '?';
+      }
+    };
+
+    return (
+      <span className={getStatusStyle(status)}>
+        {getStatusIcon(status)} {getMessageStatus(status)}
+      </span>
+    );
+  };
+
   const renderMessage = (message) => {
     const isOwnMessage = message.senderId === currentUser?.uid;
     const messageClass = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
-    const isPending = message.status === 'pending';
+    const isPending = message.status === 'pending' || message.status === 'en_attente_validation';
     const isRejected = message.status === 'rejected';
     const otherUserId = isOwnMessage ? message.receiverId : message.senderId;
     const otherUser = users[otherUserId];
@@ -412,13 +541,7 @@ const Messages = () => {
       <div key={message.id} className={messageClass}>
         <div className="message-content">
           {message.content}
-          {isPending && (
-            <span className="pending-badge">
-              En attente de validation
-              {userRole === 'professionnel' && " par l'administrateur"}
-            </span>
-          )}
-          {isRejected && <span className="rejected-badge">Message rejeté</span>}
+          <MessageStatus status={message.status} />
           {userRole === 'administrateur' && isPending && (
             <div className="admin-actions">
               <button 
@@ -438,16 +561,18 @@ const Messages = () => {
         </div>
         {message.files && message.files.length > 0 && (
           <div className="message-files">
-            {message.files.map((file, index) => (
-              <a 
+            {message.files.map((fileUrl, index) => (
+              <img 
                 key={index} 
-                href={file.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="file-link"
-              >
-                {file.name}
-              </a>
+                src={fileUrl} 
+                alt="Image partagée"
+                className="message-image"
+                onClick={() => handleImageClick(fileUrl)}
+                onError={(e) => {
+                  console.error("Erreur de chargement de l'image:", fileUrl);
+                  e.target.style.display = 'none';
+                }}
+              />
             ))}
           </div>
         )}
@@ -463,6 +588,38 @@ const Messages = () => {
     );
   };
 
+  const handleImageClick = (url) => {
+    setSelectedImageUrl(url);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setSelectedImageUrl(null);
+    setIsModalOpen(false);
+  };
+
+  const getMessageStatus = (status) => {
+    switch (status) {
+      case 'approved':
+        return 'Approuvé';
+      case 'pending':
+        return 'En attente';
+      case 'rejected':
+        return 'Rejeté';
+      case 'en_attente_validation':
+        return 'En attente de validation';
+      default:
+        return status;
+    }
+  };
+
+  const handleDeleteClick = (proId, e) => {
+    e.stopPropagation();
+    if (window.confirm('Voulez-vous vraiment supprimer cette conversation ? Elle sera masquée de votre liste mais restera accessible à l\'autre utilisateur.')) {
+      handleDeleteConversation(proId);
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -471,7 +628,10 @@ const Messages = () => {
     return <div className="loading">Chargement des messages...</div>;
   }
 
-  const professionalGroups = groupMessagesByProfessional();
+  console.log('Current messages state:', messages); // Debug log
+  // Group messages only once during render
+  const professionalGroups = messages && Array.isArray(messages) ? groupMessagesByProfessional(messages) : {};
+  console.log('Professional groups:', professionalGroups); // Debug log
 
   return (
     <div className="messages-container">
@@ -518,10 +678,7 @@ const Messages = () => {
                   <div className="actions-column">
                     <button 
                       className="delete-conversation-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // handleDeleteConversation(proId);
-                      }}
+                      onClick={(e) => handleDeleteClick(proId, e)}
                     >
                       Supprimer
                     </button>
@@ -550,9 +707,9 @@ const Messages = () => {
             <div className="messages-list">
               {filterMessages(professionalGroups[selectedMessage.senderId === currentUser.uid 
                 ? selectedMessage.receiverId 
-                : selectedMessage.senderId]?.messages || [])
-                .sort(sortMessages)
-                .map(renderMessage)}
+                : selectedMessage.senderId]?.messages || []).
+                sort(sortMessages).
+                map(renderMessage)}
             </div>
             <div className="message-input">
               <form onSubmit={handleSendMessage}>
@@ -583,6 +740,18 @@ const Messages = () => {
           </div>
         )}
       </div>
+      {isModalOpen && selectedImageUrl && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeModal}>×</button>
+            <img 
+              src={selectedImageUrl} 
+              alt="Image en grand"
+              className="modal-image"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

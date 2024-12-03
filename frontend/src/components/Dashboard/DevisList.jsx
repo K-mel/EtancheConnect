@@ -16,6 +16,8 @@ const DevisList = ({ userType }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [devisAmount, setDevisAmount] = useState('');
   const [devisDetails, setDevisDetails] = useState('');
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [questionContent, setQuestionContent] = useState('');
   const { currentUser } = useAuth();
 
   const fetchDevis = useCallback(async () => {
@@ -51,6 +53,7 @@ const DevisList = ({ userType }) => {
 
       const querySnapshot = await getDocs(q);
       const devisData = querySnapshot.docs.map(doc => ({
+
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate().toLocaleDateString() || 'Date inconnue'
@@ -205,6 +208,45 @@ const DevisList = ({ userType }) => {
     } catch (error) {
       console.error('Erreur lors de l\'envoi du devis:', error);
       setMessageError('Une erreur est survenue lors de l\'envoi du devis.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQuestionSubmit = async (devisId, particulierId) => {
+    if (!questionContent.trim()) {
+      setMessageError('Veuillez entrer votre question');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // Créer le message dans la collection messages
+      const messageData = {
+        content: questionContent,
+        createdAt: serverTimestamp(),
+        senderId: currentUser.uid,
+        receiverId: particulierId,
+        devisId: devisId,
+        role: 'professionnel',
+        status: 'en_attente_validation',
+        type: 'question',
+        participants: [currentUser.uid, particulierId]
+      };
+
+      await addDoc(collection(db, 'messages'), messageData);
+
+      // Réinitialiser le formulaire
+      setQuestionContent('');
+      setIsQuestionModalOpen(false);
+      setMessageError('');
+      
+      // Afficher un message de confirmation
+      alert('Votre message a été envoyé et est en attente de validation par l\'administrateur. Vous pouvez le consulter dans l\'onglet Messages.');
+
+    } catch (error) {
+      setMessageError('Erreur lors de l\'envoi de la question: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -393,6 +435,17 @@ const DevisList = ({ userType }) => {
                 </td>
                 <td className="actions">
                   {renderActions(devis)}
+                  {userType === 'professionnel' && (
+                    <button
+                      onClick={() => {
+                        setSelectedDevis(devis);
+                        setIsQuestionModalOpen(true);
+                      }}
+                      className="question-btn"
+                    >
+                      Question
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -401,6 +454,41 @@ const DevisList = ({ userType }) => {
       )}
       {renderModalContent()}
       {renderFullscreenImage()}
+
+      {/* Modal pour poser une question */}
+      {isQuestionModalOpen && selectedDevis && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Poser une question sur le devis</h3>
+            {messageError && <div className="error-message">{messageError}</div>}
+            <textarea
+              value={questionContent}
+              onChange={(e) => setQuestionContent(e.target.value)}
+              placeholder="Écrivez votre question ici..."
+              className="question-textarea"
+            />
+            <div className="modal-actions">
+              <button
+                onClick={() => handleQuestionSubmit(selectedDevis.id, selectedDevis.userId)}
+                disabled={isSubmitting}
+                className="submit-btn"
+              >
+                {isSubmitting ? 'Envoi...' : 'Envoyer'}
+              </button>
+              <button
+                onClick={() => {
+                  setIsQuestionModalOpen(false);
+                  setQuestionContent('');
+                  setMessageError('');
+                }}
+                className="cancel-btn"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase';
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, orderBy, getDoc, where, Timestamp } from 'firebase/firestore';
-import { FaTrash, FaCheck, FaTimes, FaEye } from 'react-icons/fa';
+import { collection, query, getDocs, doc, updateDoc, deleteDoc, orderBy, getDoc, where, Timestamp, limit, startAfter } from 'firebase/firestore';
+import { FaTrash, FaCheck, FaTimes, FaEye, FaHistory } from 'react-icons/fa';
 import './MessagesContent.css';
 
 const MessagesContent = () => {
   const [messages, setMessages] = useState([]);
+  const [historyMessages, setHistoryMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedSenderId, setSelectedSenderId] = useState(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [lastDoc, setLastDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [filters, setFilters] = useState({
+    status: 'all',
+    dateRange: '7days',
+    type: 'all'
+  });
 
   const getUserData = async (userId) => {
     if (!userId) return 'Utilisateur inconnu';
@@ -69,30 +81,34 @@ const MessagesContent = () => {
       setError(null);
       const messagesRef = collection(db, 'messages');
       
-      // Simplifier la requête pour éviter l'erreur d'index
+      // Requête simplifiée pour ne récupérer que les messages en attente
       const messagesQuery = query(
         messagesRef,
-        where('status', '==', 'pending')
+        where('status', 'in', ['pending', 'en_attente_validation'])
       );
       
       const messagesSnapshot = await getDocs(messagesQuery);
       const messagesPromises = messagesSnapshot.docs.map(async (doc) => {
         const messageData = doc.data();
         const senderName = await getUserData(messageData.senderId);
-        const receiverName = await getUserData(messageData.receiverId);
+        const receiverName = await getUserData(messageData.receiverId || messageData.recipientId);
         
         return {
           id: doc.id,
           ...messageData,
           senderName,
           receiverName,
-          timestamp: formatTimestamp(messageData.timestamp)
+          timestamp: formatTimestamp(messageData.timestamp || messageData.createdAt)
         };
       });
 
       const messagesData = await Promise.all(messagesPromises);
-      // Trier les messages côté client
-      const sortedMessages = messagesData.sort((a, b) => b.timestamp - a.timestamp);
+      // Tri côté client
+      const sortedMessages = messagesData.sort((a, b) => {
+        const dateA = new Date(a.timestamp);
+        const dateB = new Date(b.timestamp);
+        return dateB - dateA;
+      });
       
       setMessages(sortedMessages);
     } catch (err) {
@@ -103,9 +119,91 @@ const MessagesContent = () => {
     }
   };
 
-  useEffect(() => {
-    fetchMessages();
-  }, []);
+  const fetchHistoryMessages = async (isInitial = false) => {
+    try {
+      setHistoryLoading(true);
+      const messagesRef = collection(db, 'messages');
+      
+      let q = query(messagesRef, orderBy('createdAt', 'desc'));
+
+      // Appliquer les filtres
+      if (filters.status !== 'all') {
+        q = query(q, where('status', '==', filters.status));
+      }
+
+      if (filters.type !== 'all') {
+        q = query(q, where('type', '==', filters.type));
+      }
+
+      // Filtre de date
+      const now = new Date();
+      let startDate;
+      switch (filters.dateRange) {
+        case '24h':
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case '7days':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30days':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = null;
+      }
+
+      if (startDate) {
+        q = query(q, where('createdAt', '>=', Timestamp.fromDate(startDate)));
+      }
+
+      // Pagination
+      q = query(q, limit(10));
+      if (!isInitial && lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
+      const snapshot = await getDocs(q);
+      const messagesPromises = snapshot.docs.map(async (doc) => {
+        const messageData = doc.data();
+        const senderName = await getUserData(messageData.senderId);
+        const receiverName = await getUserData(messageData.receiverId);
+        
+        return {
+          id: doc.id,
+          ...messageData,
+          senderName,
+          receiverName,
+          createdAt: formatTimestamp(messageData.createdAt)
+        };
+      });
+
+      const newMessages = await Promise.all(messagesPromises);
+      
+      if (isInitial) {
+        setHistoryMessages(newMessages);
+      } else {
+        setHistoryMessages(prev => [...prev, ...newMessages]);
+      }
+
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === 10);
+      
+    } catch (err) {
+      console.error('Erreur lors de la récupération de l\'historique:', err);
+      setError('Erreur lors du chargement de l\'historique des messages');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+    setLastDoc(null);
+    fetchHistoryMessages(true);
+  };
 
   const handleSelectSender = (senderId) => {
     console.log('Sender selected:', senderId);
@@ -140,122 +238,375 @@ const MessagesContent = () => {
   const handleMessageAction = async (message, action) => {
     try {
       const messageRef = doc(db, 'messages', message.id);
+      const newStatus = action === 'approve' ? 'approved' : 'rejected';
+      const timestamp = Timestamp.now();
+      
+      await updateDoc(messageRef, {
+        status: newStatus,
+        [action === 'approve' ? 'approvedAt' : 'rejectedAt']: timestamp
+      });
+
+      // Retirer le message de la liste des messages en attente
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== message.id));
+      
+      // Si le message est approuvé, l'ajouter à l'historique
       if (action === 'approve') {
-        await updateDoc(messageRef, {
-          status: 'approved',
-          approvedAt: Timestamp.now()
-        });
-      } else if (action === 'reject') {
-        await updateDoc(messageRef, {
-          status: 'rejected',
-          rejectedAt: Timestamp.now()
-        });
+        const updatedMessage = {
+          ...message,
+          status: newStatus,
+          approvedAt: timestamp,
+          createdAt: timestamp
+        };
+        
+        setHistoryMessages(prevHistory => [updatedMessage, ...prevHistory]);
       }
       
-      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== message.id));
     } catch (err) {
       console.error('Erreur lors de l\'action:', err);
-      alert('Erreur lors de l\'action sur le message');
+      setError(`Une erreur est survenue lors de l'${action === 'approve' ? 'approbation' : 'rejet'} du message`);
     }
   };
 
-  return (
-    <div className="messages-container">
-      {/* Colonne de gauche - Liste des expéditeurs */}
-      <div className="senders-column">
-        <div className="senders-header">
-          <h2>Messages en attente</h2>
+  const handleImageClick = (url) => {
+    setSelectedImageUrl(url);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setSelectedImageUrl(null);
+    setIsModalOpen(false);
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (window.confirm('Attention : Cette action supprimera définitivement le message de la base de données. Cette action est irréversible. Voulez-vous continuer ?')) {
+      try {
+        // Supprimer le message de Firestore
+        await deleteDoc(doc(db, 'messages', messageId));
+        
+        // Mettre à jour l'historique local
+        setHistoryMessages(prevHistory => 
+          prevHistory.filter(msg => msg.id !== messageId)
+        );
+        
+      } catch (err) {
+        console.error('Erreur lors de la suppression du message:', err);
+        setError('Une erreur est survenue lors de la suppression du message');
+      }
+    }
+  };
+
+  const renderMessage = (message) => {
+    const isDevisMessage = message.type === 'devis_question';
+    
+    return (
+      <div key={message.id} className="message-item">
+        <div className="message-header">
+          <div className="message-info">
+            <div className="message-participants">
+              <span className="sender">De: <span className="sender-name">{message.senderName}</span></span>
+              <span className="arrow">→</span>
+              <span className="receiver">À: <span className="receiver-name">{message.receiverName}</span></span>
+            </div>
+            <span className="message-type-badge">
+              {isDevisMessage ? 'Question Devis' : 'Message'}
+            </span>
+            {message.devisInfo && (
+              <span className="devis-reference">
+                Devis #{message.devisInfo.id.substring(0, 6)}
+              </span>
+            )}
+          </div>
+          <div className="message-timestamp">
+            {formatTimestamp(message.timestamp).toLocaleString()}
+          </div>
         </div>
-        <div className="senders-list">
-          {loading ? (
-            <div className="messages-loading">
-              <p>Chargement des messages...</p>
+        
+        <div className="message-content">
+          <p>{message.content}</p>
+          {message.devisInfo && (
+            <div className="devis-details">
+              <p><strong>Détails du devis :</strong></p>
+              <p>{message.devisInfo.description}</p>
             </div>
-          ) : error ? (
-            <div className="messages-error">
-              <p>{error}</p>
-              <button className="retry-button" onClick={fetchMessages}>
-                Réessayer
-              </button>
+          )}
+          {message.files && message.files.length > 0 && (
+            <div className="message-files">
+              {message.files.map((fileUrl, index) => (
+                <img 
+                  key={index} 
+                  src={fileUrl} 
+                  alt="Image partagée"
+                  className="message-image"
+                  onClick={() => handleImageClick(fileUrl)}
+                  onError={(e) => {
+                    console.error("Erreur de chargement de l'image:", fileUrl);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ))}
             </div>
-          ) : messages.length === 0 ? (
-            <div className="messages-empty">
-              <p>Aucun message en attente</p>
-            </div>
-          ) : (
-            groupMessagesBySender(messages).map((group) => (
-              <div 
-                key={group.senderId} 
-                className={`sender-item ${selectedSenderId === group.senderId ? 'selected' : ''}`}
-                onClick={() => handleSelectSender(group.senderId)}
-              >
-                <div className="sender-info">
-                  <span className="sender-name">{group.senderName}</span>
-                  <span className="message-count">
-                    {group.messages.length} message{group.messages.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-              </div>
-            ))
           )}
         </div>
+        
+        <div className="message-actions">
+          <button
+            className="approve-button"
+            onClick={() => handleMessageAction(message, 'approve')}
+          >
+            <FaCheck /> Approuver
+          </button>
+          <button
+            className="reject-button"
+            onClick={() => handleMessageAction(message, 'reject')}
+          >
+            <FaTimes /> Rejeter
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderHistoryMessage = (message) => {
+    const isDevisMessage = message.type === 'devis_question';
+    
+    return (
+      <div key={message.id} className="message-item">
+        <div className="message-header">
+          <div className="message-info">
+            <div className="message-participants">
+              <span className="sender">De: <span className="sender-name">{message.senderName}</span></span>
+              <span className="arrow">→</span>
+              <span className="receiver">À: <span className="receiver-name">{message.receiverName}</span></span>
+            </div>
+            <div className="message-status-info">
+              <span className={`status-badge ${message.status}`}>
+                {message.status === 'approved' ? 'Approuvé' : 'Rejeté'}
+              </span>
+              <span className="message-type-badge">
+                {isDevisMessage ? 'Question Devis' : 'Message'}
+              </span>
+              {message.devisInfo && (
+                <span className="devis-reference">
+                  Devis #{message.devisInfo.id.substring(0, 6)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="message-actions">
+            <button 
+              className="delete-message-btn"
+              onClick={() => handleDeleteMessage(message.id)}
+              title="Supprimer définitivement ce message"
+            >
+              <FaTrash /> Supprimer
+            </button>
+          </div>
+        </div>
+        
+        <div className="message-content">
+          <p>{message.content}</p>
+          {message.devisInfo && (
+            <div className="devis-details">
+              <p><strong>Détails du devis :</strong></p>
+              <p>{message.devisInfo.description}</p>
+            </div>
+          )}
+          {message.files && message.files.length > 0 && (
+            <div className="message-files">
+              {message.files.map((fileUrl, index) => (
+                <img 
+                  key={index} 
+                  src={fileUrl} 
+                  alt="Image partagée"
+                  className="message-image"
+                  onClick={() => handleImageClick(fileUrl)}
+                  onError={(e) => {
+                    console.error("Erreur de chargement de l'image:", fileUrl);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="message-timestamp">
+          {formatTimestamp(message.createdAt).toLocaleString()}
+        </div>
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  return (
+    <div className="messages-content">
+      <div className="messages-header">
+        <h2>Messages</h2>
+        <button 
+          className="history-button"
+          onClick={() => {
+            setShowHistory(!showHistory);
+            if (!showHistory) {
+              fetchHistoryMessages(true);
+            }
+          }}
+        >
+          <FaHistory /> Historique des messages
+        </button>
       </div>
 
-      {/* Colonne de droite - Messages du groupe sélectionné */}
-      <div className="messages-column">
-        {selectedSenderId ? (
-          <>
-            <div className="messages-header">
-              <h2>
-                {groupMessagesBySender(messages).find(g => g.senderId === selectedSenderId)?.senderName}
-              </h2>
+      {showHistory ? (
+        <div className="messages-history">
+          <div className="history-header">
+            <button 
+              className="back-button"
+              onClick={() => setShowHistory(false)}
+            >
+              ← Retour aux messages
+            </button>
+          </div>
+          <div className="history-section">
+            <h3>Historique des messages</h3>
+            <div className="history-info">
+              <p className="warning-text">
+                <FaTrash className="warning-icon" /> 
+                Attention : La suppression d'un message dans l'historique est définitive et irréversible. 
+                Le message sera complètement effacé de la base de données.
+              </p>
             </div>
-            <div className="messages-view">
-              {groupMessagesBySender(messages)
-                .find(g => g.senderId === selectedSenderId)
-                ?.messages.map((message) => (
-                  <div key={message.id} className="message-bubble">
-                    <div className="message-info">
-                      <span>À: {message.receiverName}</span>
-                      <span>
-                        {message.timestamp.toLocaleDateString('fr-FR', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+          </div>
+          <div className="filters">
+            <select 
+              value={filters.status} 
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="pending">En attente</option>
+              <option value="approved">Approuvé</option>
+              <option value="rejected">Rejeté</option>
+            </select>
+
+            <select 
+              value={filters.dateRange} 
+              onChange={(e) => handleFilterChange('dateRange', e.target.value)}
+            >
+              <option value="24h">Dernières 24h</option>
+              <option value="7days">7 derniers jours</option>
+              <option value="30days">30 derniers jours</option>
+              <option value="all">Tout</option>
+            </select>
+
+            <select 
+              value={filters.type} 
+              onChange={(e) => handleFilterChange('type', e.target.value)}
+            >
+              <option value="all">Tous les types</option>
+              <option value="question">Questions</option>
+              <option value="devis">Devis</option>
+              <option value="general">Général</option>
+            </select>
+          </div>
+
+          <div className="messages-list history">
+            {historyMessages.map((message) => (
+              renderHistoryMessage(message)
+            ))}
+
+            {historyLoading && (
+              <div className="loading">Chargement...</div>
+            )}
+
+            {hasMore && !historyLoading && (
+              <button 
+                className="load-more"
+                onClick={() => fetchHistoryMessages(false)}
+              >
+                Charger plus
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="messages-container">
+          {/* Colonne de gauche - Liste des expéditeurs */}
+          <div className="senders-column">
+            <div className="senders-header">
+              <h2>Messages en attente</h2>
+            </div>
+            <div className="senders-list">
+              {loading ? (
+                <div className="messages-loading">
+                  <p>Chargement des messages...</p>
+                </div>
+              ) : error ? (
+                <div className="messages-error">
+                  <p>{error}</p>
+                  <button className="retry-button" onClick={fetchMessages}>
+                    Réessayer
+                  </button>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="messages-empty">
+                  <p>Aucun message en attente</p>
+                </div>
+              ) : (
+                groupMessagesBySender(messages).map((group) => (
+                  <div 
+                    key={group.senderId} 
+                    className={`sender-item ${selectedSenderId === group.senderId ? 'selected' : ''}`}
+                    onClick={() => handleSelectSender(group.senderId)}
+                  >
+                    <div className="sender-info">
+                      <span className="sender-name">{group.senderName}</span>
+                      <span className="message-count">
+                        {group.messages.length} message{group.messages.length > 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className="message-text">
-                      {message.content}
-                    </div>
-                    <div className="message-actions">
-                      <button
-                        className="action-button approve-button"
-                        onClick={() => handleMessageAction(message, 'approve')}
-                      >
-                        <FaCheck />
-                        Approuver
-                      </button>
-                      <button
-                        className="action-button reject-button"
-                        onClick={() => handleMessageAction(message, 'reject')}
-                      >
-                        <FaTimes />
-                        Rejeter
-                      </button>
-                    </div>
                   </div>
-                ))}
+                ))
+              )}
             </div>
-          </>
-        ) : (
-          <div className="no-selection">
-            <p>Sélectionnez un expéditeur pour voir ses messages</p>
           </div>
-        )}
-      </div>
+
+          {/* Colonne de droite - Messages du groupe sélectionné */}
+          <div className="messages-column">
+            {selectedSenderId ? (
+              <div>
+                <div className="messages-header">
+                  <h2>
+                    {groupMessagesBySender(messages).find(g => g.senderId === selectedSenderId)?.senderName}
+                  </h2>
+                </div>
+                <div className="messages-view">
+                  {groupMessagesBySender(messages)
+                    .find(g => g.senderId === selectedSenderId)
+                    ?.messages.map((message) => (
+                      renderMessage(message)
+                    ))}
+                </div>
+              </div>
+            ) : (
+              <div className="no-selection">
+                <p>Sélectionnez un expéditeur pour voir ses messages</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {isModalOpen && selectedImageUrl && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeModal}>×</button>
+            <img 
+              src={selectedImageUrl} 
+              alt="Image en grand"
+              className="modal-image"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
