@@ -130,7 +130,7 @@ const Dashboard = () => {
           },
           {
             id: 'devis',
-            label: 'Mes Devis',
+            label: 'Mes demandes de devis',
             icon: <FaFileAlt />
           },
           {
@@ -216,7 +216,7 @@ const Dashboard = () => {
       case 'nouveau-devis':
         return <DevisParticulier onDevisSubmitted={() => handleTabChange('devis')} />;
       case 'messages':
-        return <MessagesContent />;
+        return <Messages />;
       case 'projets':
         return <ProjetsContent />;
       case 'utilisateurs':
@@ -271,7 +271,7 @@ const Dashboard = () => {
         <div className="content-header">
           <h1>
             {activeTab === 'apercu' && 'Tableau de bord'}
-            {activeTab === 'devis' && (userRole === 'particulier' ? 'Mes Devis' : 'Devis Reçus')}
+            {activeTab === 'devis' && (userRole === 'particulier' ? 'Mes demandes de devis' : 'Devis Reçus')}
             {activeTab === 'nouveau-devis' && 'Demande de devis'}
             {activeTab === 'messages' && 'Messagerie'}
             {activeTab === 'projets' && 'Mes Projets'}

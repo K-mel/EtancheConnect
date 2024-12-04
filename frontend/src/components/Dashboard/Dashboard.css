@@ -1,8 +1,11 @@
 /* Structure de base */
 .dashboard {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 64px);
   background-color: #f5f6fa;
+  margin-top: 64px;
+  position: relative;
+  z-index: 20; /* Plus élevé que la navbar qui est à 10 */
 }
 
 .sidebar {
@@ -100,13 +103,19 @@
 }
 
 .content-header {
-  margin-bottom: 30px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: -64px;  /* Compense la hauteur de la navbar */
+  padding-top: 79px;  /* 64px (hauteur navbar) + 15px (padding normal) */
 }
 
 .content-header h1 {
   margin: 0;
+  font-size: 1.8rem;
   color: #2c3e50;
-  font-size: 2rem;
 }
 
 .apercu-container {

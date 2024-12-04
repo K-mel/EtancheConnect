@@ -22,7 +22,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     messages: 0,
     utilisateurs: 0,
     taches: 0,
-    devisEnAttente: 0
+    devisEnAttente: 0,
+    devisEnAttenteSignature: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           messages: 0,
           utilisateurs: 0,
           taches: 0,
-          devisEnAttente: 0
+          devisEnAttente: 0,
+          devisEnAttenteSignature: 0
         };
 
         // Pour les administrateurs, récupérer toutes les données
@@ -71,6 +73,14 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           );
           const devisEnAttenteSnapshot = await getDocs(devisEnAttenteQuery);
           statsData.devisEnAttente = devisEnAttenteSnapshot.size;
+
+          // Compter les devis en attente de signature
+          const devisEnAttenteSignatureQuery = query(
+            collection(db, 'devis'),
+            where('status', '==', 'en_attente_signature')
+          );
+          const devisEnAttenteSignatureSnapshot = await getDocs(devisEnAttenteSignatureQuery);
+          statsData.devisEnAttenteSignature = devisEnAttenteSignatureSnapshot.size;
 
           // Récupérer les activités récentes
           const recentActivitiesQuery = query(
@@ -108,14 +118,6 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           const devisSnapshot = await getDocs(devisQuery);
           statsData.devis = devisSnapshot.size;
 
-          const projetsQuery = query(
-            collection(db, 'projects'),
-            where(userRole === 'professional' ? 'professionnelId' : 'userId', '==', user.uid),
-            orderBy('createdAt', 'desc')
-          );
-          const projetsSnapshot = await getDocs(projetsQuery);
-          statsData.projets = projetsSnapshot.size;
-
           const messagesQuery = query(
             collection(db, 'messages'),
             where('participants', 'array-contains', user.uid),
@@ -123,6 +125,36 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           );
           const messagesSnapshot = await getDocs(messagesQuery);
           statsData.messages = messagesSnapshot.size;
+
+          // Ajout des activités récentes pour les particuliers
+          if (userRole === 'particulier') {
+            const recentActivitiesQuery = query(
+              collection(db, 'activites'),
+              where('userId', '==', user.uid),
+              orderBy('timestamp', 'desc'),
+              limit(5)
+            );
+            const recentActivitiesSnapshot = await getDocs(recentActivitiesQuery);
+            
+            const activities = recentActivitiesSnapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                type: data.type,
+                title: data.title,
+                description: data.description,
+                time: new Date(data.timestamp.toDate()).toLocaleString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                })
+              };
+            });
+
+            setRecentActivity(activities);
+          }
         }
 
         setStats(statsData);
@@ -216,15 +248,9 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
       {
         icon: <FaFileInvoiceDollar />,
         value: stats.devis,
-        label: 'Devis en cours',
+        label: 'Demande de devis en cours',
         color: '#10b981',
         onClick: () => handleTabChange('devis')
-      },
-      {
-        icon: <FaProjectDiagram />,
-        value: stats.projets,
-        label: 'Projets actifs',
-        color: '#3b82f6'
       },
       {
         icon: <FaEnvelope />,
@@ -234,10 +260,11 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         onClick: () => handleTabChange('messages')
       },
       {
-        icon: <FaChartLine />,
-        value: stats.taches,
-        label: 'Tâches en cours',
-        color: '#8b5cf6'
+        icon: <FaFileInvoiceDollar />,
+        value: stats.devisEnAttenteSignature,
+        label: 'Devis en attente de signature',
+        color: '#8b5cf6',
+        onClick: () => handleTabChange('devis')
       }
     ];
   };
@@ -259,25 +286,44 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     <div className="apercu-container">
       <div className="stats-grid">
         {getStatsList().map((stat, index) => (
-          <div 
-            key={index} 
-            className="stat-card" 
-            style={{ borderColor: stat.color, cursor: stat.onClick ? 'pointer' : 'default' }}
+          <div
+            key={index}
+            className="stat-card"
             onClick={stat.onClick}
+            style={{ borderColor: stat.color }}
           >
             <div className="stat-icon" style={{ color: stat.color }}>
               {stat.icon}
             </div>
-            <div className="stat-details">
-              <h3 className="stat-value">{stat.value}</h3>
-              <p className="stat-label">{stat.label}</p>
+            <div className="stat-info">
+              <div className="stat-value">{stat.value}</div>
+              <div className="stat-label">{stat.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {userRole === 'administrateur' && (
-        <RecentActivityList activities={recentActivity} />
+      {(userRole === 'administrateur' || userRole === 'particulier') && recentActivity.length > 0 && (
+        <div className="recent-activity-section">
+          <h2 className="section-title">
+            <FaClock className="section-icon" />
+            Activités Récentes
+          </h2>
+          <div className="activity-list">
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="activity-item">
+                <div className="activity-icon" style={{ backgroundColor: getActivityColor(activity.type) }}>
+                  {getActivityIcon(activity.type)}
+                </div>
+                <div className="activity-content">
+                  <div className="activity-title">{activity.title}</div>
+                  <div className="activity-description">{activity.description}</div>
+                  <div className="activity-time">{activity.time}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
