@@ -4,6 +4,7 @@ import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
 import { validateQuestionContent } from '../../utils/questionValidation';
+import { formatDevisNumber } from '../../utils/formatters';
 import './styles/devis.css';
 
 const DevisList = ({ userType }) => {
@@ -484,6 +485,7 @@ const DevisList = ({ userType }) => {
             </div>
           ) : (
             <div className="devis-details">
+              <p><strong>N° Demande:</strong> <span className="devis-number">{formatDevisNumber(selectedDevis.id)}</span></p>
               <p><strong>Date:</strong> {selectedDevis.createdAt}</p>
               <p><strong>Type de projet:</strong> {selectedDevis.typeProjet}</p>
               <p><strong>Surface:</strong> {selectedDevis.surface} m²</p>
@@ -563,6 +565,7 @@ const DevisList = ({ userType }) => {
         <table>
           <thead>
             <tr>
+              <th>N° Demande</th>
               <th>Date</th>
               <th>Type de projet</th>
               <th>Surface</th>
@@ -574,6 +577,7 @@ const DevisList = ({ userType }) => {
           <tbody>
             {devis.map((devis) => (
               <tr key={devis.id} className={devis.status}>
+                <td>{formatDevisNumber(devis.id)}</td>
                 <td>{devis.createdAt}</td>
                 <td>{devis.typeProjet}</td>
                 <td>{devis.surface} m²</td>

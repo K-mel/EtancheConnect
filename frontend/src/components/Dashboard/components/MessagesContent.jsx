@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../../firebase';
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, orderBy, getDoc, where, Timestamp, limit, startAfter } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  orderBy, 
+  getDoc, 
+  where, 
+  Timestamp, 
+  limit, 
+  startAfter 
+} from 'firebase/firestore';
 import { FaTrash, FaCheck, FaTimes, FaEye, FaHistory } from 'react-icons/fa';
+import { db } from '../../../firebase';
 import { createMessageNotification } from '../../../services/notificationService';
 import './MessagesContent.css';
 
 const MessagesContent = () => {
   const [messages, setMessages] = useState([]);
   const [historyMessages, setHistoryMessages] = useState([]);
+  const [allHistoryMessages, setAllHistoryMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,6 +31,7 @@ const MessagesContent = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     status: 'all',
     dateRange: '7days',
@@ -163,7 +178,7 @@ const MessagesContent = () => {
       }
 
       // Pagination
-      q = query(q, limit(10));
+      q = query(q, limit(20)); 
       if (!isInitial && lastDoc) {
         q = query(q, startAfter(lastDoc));
       }
@@ -184,15 +199,15 @@ const MessagesContent = () => {
       });
 
       const newMessages = await Promise.all(messagesPromises);
-      
+
       if (isInitial) {
-        setHistoryMessages(newMessages);
+        setAllHistoryMessages(newMessages);
       } else {
-        setHistoryMessages(prev => [...prev, ...newMessages]);
+        setAllHistoryMessages(prev => [...prev, ...newMessages]);
       }
 
       setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === 10);
+      setHasMore(snapshot.docs.length === 20); 
       
     } catch (err) {
       console.error('Erreur lors de la récupération de l\'historique:', err);
@@ -201,6 +216,18 @@ const MessagesContent = () => {
       setHistoryLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (showHistory && searchQuery.trim()) {
+      const filteredMessages = allHistoryMessages.filter(msg => 
+        msg.senderName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        msg.receiverName?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setHistoryMessages(filteredMessages);
+    } else if (showHistory) {
+      setHistoryMessages(allHistoryMessages);
+    }
+  }, [searchQuery, allHistoryMessages, showHistory]);
 
   const handleFilterChange = (filterType, value) => {
     setFilters(prev => ({
@@ -590,29 +617,26 @@ const MessagesContent = () => {
       </div>
 
       {showHistory ? (
-        <div className="messages-history">
+        <div className="history-container">
           <div className="history-header">
-            <button 
-              className="back-button"
-              onClick={() => setShowHistory(false)}
-            >
-              ← Retour aux messages
+            <h2>Historique des Messages</h2>
+            <button onClick={() => setShowHistory(false)} className="back-button">
+              Retour aux messages
             </button>
           </div>
-          <div className="history-section">
-            <h3>Historique des messages</h3>
-            <div className="history-info">
-              <p className="warning-text">
-                <FaTrash className="warning-icon" /> 
-                Attention : La suppression d'un message dans l'historique est définitive et irréversible. 
-                Le message sera complètement effacé de la base de données.
-              </p>
+          <div className="filters-container">
+            <div className="search-bar">
+              <input
+                type="text"
+                placeholder="Rechercher par nom..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+              />
             </div>
-          </div>
-          <div className="filters">
-            <select 
-              value={filters.status} 
-              onChange={(e) => handleFilterChange('status', e.target.value)}
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
             >
               <option value="all">Tous les statuts</option>
               <option value="pending">En attente</option>

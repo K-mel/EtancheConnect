@@ -10,7 +10,7 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck, FaPlusCircle } from 'react-icons/fa';
+import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck, FaPlusCircle, FaClipboardList } from 'react-icons/fa';
 import DevisList from './DevisList';
 import Messages from '../MessagesModule/Messages';
 import ProfileContent from '../Profile/ProfileContent';
@@ -22,6 +22,7 @@ import StatistiquesContent from './components/StatistiquesContent';
 import DevisContent from './components/DevisContent';
 import MessagesContent from './components/MessagesContent';
 import DevisParticulier from '../DevisParticulier/DevisParticulier';
+import DemandesDevisContent from './components/DemandesDevisContent';
 import '../../styles/dashboard.css';
 import './styles/statistiques.css';
 
@@ -173,6 +174,11 @@ const Dashboard = () => {
         return [
           ...baseItems,
           {
+            id: 'devis',
+            label: 'Demandes de devis',
+            icon: <FaClipboardList />
+          },
+          {
             id: 'utilisateurs',
             label: 'Utilisateurs',
             icon: <FaUsers />
@@ -181,11 +187,6 @@ const Dashboard = () => {
             id: 'validations',
             label: 'Validations',
             icon: <FaUserCheck />
-          },
-          {
-            id: 'statistiques',
-            label: 'Statistiques',
-            icon: <FaProjectDiagram />
           },
           {
             id: 'messages',
@@ -207,14 +208,15 @@ const Dashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'apercu':
-        return <AperçuContent stats={stats} userRole={userRole} handleTabChange={handleTabChange} />;
+        return <AperçuContent userRole={userRole} handleTabChange={handleTabChange} stats={stats} />;
       case 'devis':
-        return <DevisList userType={userRole} />;
+        return userRole === 'administrateur' ? 
+          <DemandesDevisContent /> : 
+          <DevisList userType={userRole} />;
       case 'nouveau-devis':
         return <DevisParticulier onDevisSubmitted={() => handleTabChange('devis')} />;
       case 'messages':
-        // Utiliser Messages pour les particuliers et professionnels, MessagesContent uniquement pour les administrateurs
-        return userRole === 'administrateur' ? <MessagesContent /> : <Messages />;
+        return <MessagesContent />;
       case 'projets':
         return <ProjetsContent />;
       case 'utilisateurs':
@@ -226,7 +228,7 @@ const Dashboard = () => {
       case 'profile':
         return <ProfileContent />;
       default:
-        return <AperçuContent stats={stats} userRole={userRole} handleTabChange={handleTabChange} />;
+        return <AperçuContent userRole={userRole} handleTabChange={handleTabChange} stats={stats} />;
     }
   };
 

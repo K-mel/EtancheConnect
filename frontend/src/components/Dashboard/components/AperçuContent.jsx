@@ -177,31 +177,37 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           icon: <FaUsers />,
           value: stats.utilisateurs,
           label: 'Utilisateurs',
-          color: '#10b981'
+          color: '#10b981',
+          onClick: () => handleTabChange('utilisateurs')
         },
         {
           icon: <FaFileInvoiceDollar />,
           value: stats.devisEnAttente,
           label: 'Devis en attente',
-          color: '#3b82f6'
+          color: '#3b82f6',
+          onClick: () => handleTabChange('validations')
         },
         {
           icon: <FaFileInvoiceDollar />,
           value: stats.devis,
           label: 'Devis totaux',
-          color: '#6366f1'
-        },
-        {
-          icon: <FaProjectDiagram />,
-          value: stats.projets,
-          label: 'Projets totaux',
-          color: '#8b5cf6'
+          color: '#6366f1',
+          onClick: () => handleTabChange('devis')
         },
         {
           icon: <FaEnvelope />,
           value: stats.messages,
           label: 'Messages totaux',
-          color: '#f59e0b'
+          color: '#f59e0b',
+          onClick: () => {
+            handleTabChange('messages');
+            setTimeout(() => {
+              const historyButton = document.querySelector('.history-button');
+              if (historyButton) {
+                historyButton.click();
+              }
+            }, 100);
+          }
         }
       ];
     }

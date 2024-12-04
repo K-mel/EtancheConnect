@@ -36,12 +36,21 @@
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
   border: 1px solid rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(10px);
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card[style*="cursor: pointer"]:hover {
+  background-color: #f8fafc;
 }
 
 .stat-card::before {
@@ -53,16 +62,11 @@
   height: 100%;
   background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   transform: translateX(-100%);
-  transition: 0.5s;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card:hover::before {
   transform: translateX(100%);
+  transition: transform 0.5s ease;
 }
 
 .stat-card h3 {
@@ -355,39 +359,4 @@
   .devis-attente-list {
     grid-template-columns: 1fr;
   }
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.stats-grid,
-.devis-attente-section {
-  animation: fadeIn 0.5s ease-out forwards;
-}
-
-.stat-card,
-.devis-attente-card {
-  animation: fadeIn 0.5s ease-out forwards;
-}
-
-.stat-card:nth-child(1) { animation-delay: 0.1s; }
-.stat-card:nth-child(2) { animation-delay: 0.2s; }
-.stat-card:nth-child(3) { animation-delay: 0.3s; }
-.stat-card:nth-child(4) { animation-delay: 0.4s; }
-
-/* Glassmorphism effect */
-.stat-card,
-.devis-attente-section {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }

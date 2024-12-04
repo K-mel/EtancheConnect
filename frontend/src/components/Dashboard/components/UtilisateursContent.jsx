@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { FaSearch, FaUser, FaEnvelope, FaPhone, FaBuilding, FaArrowLeft } from 'react-icons/fa';
+import { FaSearch, FaUser, FaEnvelope, FaPhone, FaBuilding, FaArrowLeft, FaCalendarAlt } from 'react-icons/fa';
 import '../styles/utilisateurs.css';
 
 const UtilisateursContent = () => {
@@ -33,14 +33,22 @@ const UtilisateursContent = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      user.displayName?.toLowerCase().includes(searchLower) ||
-      user.email?.toLowerCase().includes(searchLower) ||
-      user.role?.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredUsers = users
+    .filter(user => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        user.displayName?.toLowerCase().includes(searchLower) ||
+        user.email?.toLowerCase().includes(searchLower) ||
+        user.role?.toLowerCase().includes(searchLower)
+      );
+    })
+    .sort((a, b) => {
+      // Convertir les timestamps en dates pour la comparaison
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+      // Trier du plus récent au plus ancien
+      return dateB - dateA;
+    });
 
   const handleUserClick = (user) => {
     setSelectedUser(user);
@@ -48,6 +56,22 @@ const UtilisateursContent = () => {
 
   const handleBackClick = () => {
     setSelectedUser(null);
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'Non disponible';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const normalizeRole = (role) => {
+    if (!role) return 'particulier';
+    const normalizedRole = role.toLowerCase().trim();
+    return normalizedRole === 'professionnel' ? 'professionnel' : 'particulier';
   };
 
   if (loading) {
@@ -81,10 +105,11 @@ const UtilisateursContent = () => {
             <p><FaUser /> Nom: {selectedUser.displayName || 'Non renseigné'}</p>
             <p><FaEnvelope /> Email: {selectedUser.email}</p>
             <p><FaPhone /> Téléphone: {selectedUser.phone || 'Non renseigné'}</p>
-            <p>Rôle: <span className={`role-badge ${selectedUser.role}`}>{selectedUser.role}</span></p>
+            <p>Rôle: <span className={`role-badge ${normalizeRole(selectedUser.role)}`}>{normalizeRole(selectedUser.role) === 'professionnel' ? 'Professionnel' : 'Particulier'}</span></p>
+            <p><FaCalendarAlt /> Date d'inscription: {formatDate(selectedUser.createdAt)}</p>
           </div>
 
-          {selectedUser.role === 'professionnel' && (
+          {normalizeRole(selectedUser.role) === 'professionnel' && (
             <div className="user-details-section">
               <h4>Informations professionnelles</h4>
               <p><FaBuilding /> Entreprise: {selectedUser.companyName || 'Non renseigné'}</p>
@@ -128,9 +153,14 @@ const UtilisateursContent = () => {
                 <div className="user-details-preview">
                   <span className="user-name">{user.displayName || 'Utilisateur'}</span>
                   <span className="user-email">{user.email}</span>
-                  <span className={`user-role ${user.role}`}>
-                    {user.role === 'professionnel' ? 'Professionnel' : 'Particulier'}
-                  </span>
+                  <div className="user-meta">
+                    <span className={`user-role ${normalizeRole(user.role)}`}>
+                      {normalizeRole(user.role) === 'professionnel' ? 'Professionnel' : 'Particulier'}
+                    </span>
+                    <span className="user-date">
+                      <FaCalendarAlt /> {formatDate(user.createdAt)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
