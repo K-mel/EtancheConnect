@@ -588,6 +588,14 @@ const approveMessage = async (messageId) => {
     return (
       <div key={message.id} className={messageClass}>
         <div className="message-content">
+          {isRejected && (
+            <div className="message-rejected">
+              <div className="rejection-header">Message rejeté</div>
+              <div className="rejection-reason">
+                Raison : {message.rejectionReason}
+              </div>
+            </div>
+          )}
           {message.content}
           <MessageStatus status={message.status} />
           {userRole === 'administrateur' && isPending && (
@@ -650,16 +658,16 @@ const approveMessage = async (messageId) => {
     switch (status) {
       case 'approved':
         return 'Approuvé';
-      case 'pending':
-        return 'En attente';
       case 'rejected':
         return 'Rejeté';
+      case 'pending':
       case 'en_attente_validation':
-        return 'En attente de validation';
+        return 'En attente';
       default:
-        return status;
+        return '';
     }
   };
+
 
   const handleDeleteClick = (proId, e) => {
     e.stopPropagation();
