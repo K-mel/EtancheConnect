@@ -19,7 +19,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
   const [stats, setStats] = useState({
     devis: 0,
     projets: 0,
-    messages: 0,
+    messagesNonLus: 0,
+    messagesTotaux: 0,
     utilisateurs: 0,
     taches: 0,
     devisEnAttente: 0,
@@ -41,7 +42,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         let statsData = {
           devis: 0,
           projets: 0,
-          messages: 0,
+          messagesNonLus: 0,
+          messagesTotaux: 0,
           utilisateurs: 0,
           taches: 0,
           devisEnAttente: 0,
@@ -60,7 +62,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
 
           // Compter tous les messages
           const allMessagesSnapshot = await getDocs(collection(db, 'messages'));
-          statsData.messages = allMessagesSnapshot.size;
+          statsData.messagesTotaux = allMessagesSnapshot.size;
 
           // Compter tous les utilisateurs
           const allUsersSnapshot = await getDocs(collection(db, 'users'));
@@ -118,13 +120,22 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           const devisSnapshot = await getDocs(devisQuery);
           statsData.devis = devisSnapshot.size;
 
-          const messagesQuery = query(
+          // Messages non lus
+          const messagesNonLusQuery = query(
             collection(db, 'messages'),
             where('participants', 'array-contains', user.uid),
             where('read', '==', false)
           );
-          const messagesSnapshot = await getDocs(messagesQuery);
-          statsData.messages = messagesSnapshot.size;
+          const messagesNonLusSnapshot = await getDocs(messagesNonLusQuery);
+          statsData.messagesNonLus = messagesNonLusSnapshot.size;
+
+          // Total des messages
+          const messagesTotauxQuery = query(
+            collection(db, 'messages'),
+            where('participants', 'array-contains', user.uid)
+          );
+          const messagesTotauxSnapshot = await getDocs(messagesTotauxQuery);
+          statsData.messagesTotaux = messagesTotauxSnapshot.size;
 
           // Ajout des activités récentes pour les particuliers
           if (userRole === 'particulier') {
@@ -228,11 +239,11 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         },
         {
           icon: <FaEnvelope />,
-          value: stats.messages,
+          value: stats.messagesTotaux,
           label: 'Messages totaux',
           color: '#f59e0b',
           onClick: () => {
-            handleTabChange('messages');
+            handleTabChange('messages', { showDeleted: true });
             setTimeout(() => {
               const historyButton = document.querySelector('.history-button');
               if (historyButton) {
@@ -254,10 +265,17 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
       },
       {
         icon: <FaEnvelope />,
-        value: stats.messages,
+        value: stats.messagesNonLus,
         label: 'Messages non lus',
         color: '#6366f1',
         onClick: () => handleTabChange('messages')
+      },
+      {
+        icon: <FaEnvelope />,
+        value: stats.messagesTotaux,
+        label: 'Total messages',
+        color: '#f59e0b',
+        onClick: () => handleTabChange('messages', { showDeleted: true })
       },
       {
         icon: <FaFileInvoiceDollar />,

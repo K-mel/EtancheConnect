@@ -23,6 +23,7 @@ import DevisContent from './components/DevisContent';
 import MessagesContent from './components/MessagesContent';
 import DevisParticulier from '../DevisParticulier/DevisParticulier';
 import DemandesDevisContent from './components/DemandesDevisContent';
+import MesDevisContent from './components/MesDevisContent';
 import '../../styles/dashboard.css';
 import './styles/statistiques.css';
 
@@ -134,6 +135,11 @@ const Dashboard = () => {
             icon: <FaFileAlt />
           },
           {
+            id: 'mes-devis',
+            label: 'Mes devis reçus',
+            icon: <FaClipboardList />
+          },
+          {
             id: 'messages',
             label: 'Messages',
             icon: <FaEnvelope />
@@ -215,8 +221,12 @@ const Dashboard = () => {
           <DevisList userType={userRole} />;
       case 'nouveau-devis':
         return <DevisParticulier onDevisSubmitted={() => handleTabChange('devis')} />;
+      case 'mes-devis':
+        return <MesDevisContent />;
       case 'messages':
-        return <Messages />;
+        return userRole === 'administrateur' ? 
+          <MessagesContent /> : 
+          <Messages />;
       case 'projets':
         return <ProjetsContent />;
       case 'utilisateurs':
@@ -273,6 +283,7 @@ const Dashboard = () => {
             {activeTab === 'apercu' && 'Tableau de bord'}
             {activeTab === 'devis' && (userRole === 'particulier' ? 'Mes demandes de devis' : 'Devis Reçus')}
             {activeTab === 'nouveau-devis' && 'Demande de devis'}
+            {activeTab === 'mes-devis' && 'Mes devis reçus'}
             {activeTab === 'messages' && 'Messagerie'}
             {activeTab === 'projets' && 'Mes Projets'}
             {activeTab === 'utilisateurs' && 'Gestion des Utilisateurs'}

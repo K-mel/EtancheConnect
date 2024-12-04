@@ -20,6 +20,7 @@ import { formatDevisNumber } from '../../utils/formatters';
 
 // Imports des composants et styles
 import { FaEnvelope } from 'react-icons/fa';
+import { FaTrash, FaTrashRestore } from 'react-icons/fa';
 import './Messages.css';
 
 // Constantes pour les messages d'erreur
@@ -33,28 +34,28 @@ const ERROR_MESSAGES = {
   REJECT: "Erreur lors du rejet du message",
   NOT_FOUND: "Message non trouvé",
   INVALID_IDS: "Message invalide - Informations manquantes",
-  NOTIFICATION: "Le message a été approuvé mais la notification n'a pas pu être envoyée"
+  NOTIFICATION: "Le message a été approuvé mais la notification n'a pas pu être envoyée",
+  RESTORE: "Erreur lors de la restauration de la conversation"
 };
 
-const Messages = () => {
+const Messages = ({ showDeleted }) => {
   // États
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState({});
-  const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [newMessage, setNewMessage] = useState('');
-  const [messageError, setMessageError] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [pendingMessages, setPendingMessages] = useState([]);
-  const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [selectedImageUrl, setSelectedImageUrl] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState('');
   const [deletedConversations, setDeletedConversations] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState(null);
+  const [showDeletedMessages, setShowDeletedMessages] = useState(showDeleted);
+  const [pendingMessages, setPendingMessages] = useState([]);
 
   // Fonctions utilitaires
   const getMessageDate = (message) => {
@@ -93,44 +94,48 @@ const Messages = () => {
       const otherUser = users[otherUserId];
       
       const conversationKey = `${otherUserId}_${demandeOrDevisNumber}`;
-      if (otherUser && !deletedConversations.includes(conversationKey)) {
+      
+      if (otherUser) {
         const groupKey = `${otherUserId}_${demandeOrDevisNumber}`;
         
         if (!groups[groupKey]) {
           groups[groupKey] = {
             professional: {
-              ...otherUser,
               id: otherUserId,
-              displayName: otherUser.displayName || otherUser.email || 'Utilisateur inconnu',
-              role: otherUser.role || 'particulier'
+              displayName: otherUser.displayName || otherUser.email,
+              role: otherUser.role,
+              companyName: otherUser.companyName
             },
             messages: [],
-            demandeOrDevisNumber,
-            unreadCount: 0
+            demandeOrDevisNumber: demandeOrDevisNumber,
+            lastMessage: null,
+            unreadCount: 0,
+            isDeleted: deletedConversations.includes(conversationKey)
           };
         }
         
         groups[groupKey].messages.push(message);
         
+        // Mettre à jour le dernier message
         if (!groups[groupKey].lastMessage || 
             getMessageDate(message) > getMessageDate(groups[groupKey].lastMessage)) {
           groups[groupKey].lastMessage = message;
         }
         
+        // Compter les messages non lus
         if (!message.read && message.receiverId === currentUser.uid) {
           groups[groupKey].unreadCount++;
         }
       }
     });
-  
+
+    // Trier les groupes par date du dernier message
     return Object.fromEntries(
-      Object.entries(groups)
-        .filter(([key, group]) => group.messages.length > 0)
-        .sort(([keyA, groupA], [keyB, groupB]) => {
-          const dateA = getMessageDate(groupA.lastMessage);
-          const dateB = getMessageDate(groupB.lastMessage);
-          return dateB - dateA;
-        })
+      Object.entries(groups).sort(([,a], [,b]) => {
+        const dateA = getMessageDate(a.lastMessage);
+        const dateB = getMessageDate(b.lastMessage);
+        return dateB - dateA;
+      })
     );
   };
 
@@ -148,31 +153,51 @@ const Messages = () => {
     return null;
   };
 
-  // Effets
+  // Effet pour initialiser showDeletedMessages avec la prop
   useEffect(() => {
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
+    setShowDeletedMessages(showDeleted);
+  }, [showDeleted]);
 
-    const initializeMessages = async () => {
+  // Effet pour charger les messages et les utilisateurs
+  useEffect(() => {
+    const loadInitialData = async () => {
       try {
+        setLoading(true);
+        
+        // Charger le rôle de l'utilisateur
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists()) {
-          const role = userDoc.data().role;
-          setUserRole(role);
-          await fetchMessages(role);
-          if (role === 'administrateur') {
-            await fetchPendingMessages();
-          }
+          setUserRole(userDoc.data().role);
         }
+
+        // Charger les conversations supprimées
+        const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
+        const deletedMessagesDoc = await getDoc(deletedMessagesRef);
+        if (deletedMessagesDoc.exists()) {
+          setDeletedConversations(deletedMessagesDoc.data().deletedConversations || []);
+        } else {
+          await setDoc(deletedMessagesRef, {
+            deletedConversations: [],
+            updatedAt: serverTimestamp()
+          });
+          setDeletedConversations([]);
+        }
+
+        // Charger les messages
+        await fetchMessages();
+        
       } catch (error) {
-        handleError(error, 'INIT');
+        console.error('Erreur lors du chargement initial:', error);
+        setMessageError(ERROR_MESSAGES.INIT);
+      } finally {
+        setLoading(false);
       }
     };
 
-    initializeMessages();
-  }, [currentUser, navigate]);
+    if (currentUser) {
+      loadInitialData();
+    }
+  }, [currentUser, showDeletedMessages]);
 
   useEffect(() => {
     const loadDeletedMessages = async () => {
@@ -199,47 +224,44 @@ const Messages = () => {
   }, [selectedMessage]);
 
   // Fonctions de chargement des données
-  const fetchMessages = async (userRole) => {
-    if (!currentUser) return;
-  
+  const fetchMessages = async () => {
     try {
       setLoading(true);
-      setMessageError('');
-  
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersData = {};
-      usersSnapshot.forEach((doc) => {
-        usersData[doc.id] = { id: doc.id, ...doc.data() };
+      // Récupérer les messages où l'utilisateur est impliqué
+      const messagesQuery = query(
+        collection(db, 'messages'),
+        where('participants', 'array-contains', currentUser.uid)
+      );
+
+      const [messagesSnapshot, usersSnapshot] = await Promise.all([
+        getDocs(messagesQuery),
+        getDocs(collection(db, 'users'))
+      ]);
+
+      // Créer un map des utilisateurs
+      const usersMap = {};
+      usersSnapshot.forEach(doc => {
+        usersMap[doc.id] = { id: doc.id, ...doc.data() };
       });
-      setUsers(usersData);
-  
-      const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
-      const deletedMessagesDoc = await getDoc(deletedMessagesRef);
-      const deletedConversations = deletedMessagesDoc.exists() 
-        ? deletedMessagesDoc.data().deletedConversations || []
-        : [];
-      setDeletedConversations(deletedConversations);
-  
-      const messagesRef = collection(db, 'messages');
-      const q = userRole === 'administrateur'
-        ? query(messagesRef)
-        : query(messagesRef, where('participants', 'array-contains', currentUser.uid));
-  
-      const querySnapshot = await getDocs(q);
-      const newMessages = querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(message => {
-          const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
-          const devisNumber = generateDemandeNumber(message);
-          const conversationKey = `${otherUserId}_${devisNumber}`;
-          return !deletedConversations.includes(conversationKey);
+      setUsers(usersMap);
+
+      // Traiter les messages et les trier par date
+      const messagesData = messagesSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .sort((a, b) => {
+          const timeA = a.timestamp?.seconds || 0;
+          const timeB = b.timestamp?.seconds || 0;
+          return timeB - timeA; // Tri décroissant (plus récent en premier)
         });
-  
-      setMessages(newMessages);
-  
+
+      setMessages(messagesData);
+      setMessageError('');
     } catch (error) {
-      console.error('Error fetching messages:', error);
-      handleError(error, 'LOAD');
+      console.error('Erreur lors du chargement des messages:', error);
+      setMessageError(ERROR_MESSAGES.LOAD);
     } finally {
       setLoading(false);
     }
@@ -468,23 +490,49 @@ const Messages = () => {
     }
   };
 
-  // Fonctions de filtrage
-  const filterMessages = (messages) => {
-    if (!messages || !userRole) return [];
-    
-    return messages.filter(msg => {
-      if (userRole === 'administrateur') return true;
-      if (msg.senderId === currentUser?.uid) return true;
-      return msg.status === 'approved';
-    });
+  // Gestion de la restauration des messages
+  const handleRestoreConversation = async (proId, devisNumber) => {
+    try {
+      const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
+      const deletedMessagesDoc = await getDoc(deletedMessagesRef);
+      
+      if (!deletedMessagesDoc.exists()) {
+        console.error('Document deletedMessages non trouvé');
+        return;
+      }
+
+      const conversationKey = `${proId}_${devisNumber}`;
+      const existingDeleted = deletedMessagesDoc.data().deletedConversations || [];
+      const newDeletedConversations = existingDeleted.filter(key => key !== conversationKey);
+
+      await updateDoc(deletedMessagesRef, {
+        deletedConversations: newDeletedConversations,
+        updatedAt: serverTimestamp()
+      });
+
+      // Mettre à jour l'état local
+      setDeletedConversations(newDeletedConversations);
+      
+      // Recharger les messages
+      await fetchMessages();
+
+      // Log de l'activité
+      await logActivity(
+        ActivityTypes.MESSAGE,
+        'Conversation restaurée',
+        `Conversation restaurée avec succès`,
+        currentUser.uid
+      );
+
+      setMessageError('');
+    } catch (error) {
+      console.error('Erreur lors de la restauration:', error);
+      setMessageError(ERROR_MESSAGES.RESTORE);
+      setTimeout(() => setMessageError(''), 3000);
+    }
   };
 
   // Gestion des actions UI
-  const closeModal = () => {
-    setSelectedImageUrl(null);
-    setIsModalOpen(false);
-  };
-
   const handleDeleteClick = (proId, devisNumber, e) => {
     e.stopPropagation();
     if (window.confirm('Voulez-vous vraiment supprimer cette conversation ? Elle sera masquée de votre liste mais restera accessible à l\'autre utilisateur.')) {
@@ -499,51 +547,94 @@ const Messages = () => {
       
       const conversationKey = `${proId}_${devisNumber}`;
       let newDeletedConversations = [];
-      
+
       if (deletedMessagesDoc.exists()) {
         const existingDeleted = deletedMessagesDoc.data().deletedConversations || [];
-        if (!existingDeleted.includes(conversationKey)) {
-          newDeletedConversations = [...existingDeleted, conversationKey];
-          await updateDoc(deletedMessagesRef, {
-            deletedConversations: newDeletedConversations,
-            updatedAt: serverTimestamp()
-          });
-        }
+        newDeletedConversations = [...existingDeleted, conversationKey];
       } else {
         newDeletedConversations = [conversationKey];
         await setDoc(deletedMessagesRef, {
           deletedConversations: newDeletedConversations,
-          userId: currentUser.uid,
-          createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
       }
-  
+
+      await updateDoc(deletedMessagesRef, {
+        deletedConversations: newDeletedConversations,
+        updatedAt: serverTimestamp()
+      });
+
       setDeletedConversations(newDeletedConversations);
-      
-      setMessages(prevMessages => 
-        prevMessages.filter(msg => {
-          const msgDevisNumber = generateDemandeNumber(msg);
-          return !(msg.senderId === proId && msgDevisNumber === devisNumber);
-        })
-      );
-  
+      setSelectedMessage(null);
+
+      // Log de l'activité
       await logActivity(
         ActivityTypes.MESSAGE,
         'Conversation supprimée',
-        `Conversation avec ${users[proId]?.displayName || 'un utilisateur'} (Devis ${devisNumber}) supprimée`,
+        `Conversation masquée de la liste`,
         currentUser.uid
       );
-  
-      if (selectedMessage) {
-        const selectedDevisNumber = generateDemandeNumber(selectedMessage);
-        if (selectedMessage.senderId === proId && selectedDevisNumber === devisNumber) {
-          setSelectedMessage(null);
-        }
-      }
+
+      setMessageError('');
     } catch (error) {
-      handleError(error, 'DELETE');
+      console.error('Erreur lors de la suppression:', error);
+      setMessageError(ERROR_MESSAGES.DELETE);
+      setTimeout(() => setMessageError(''), 3000);
     }
+  };
+
+  const isConversationDeleted = (proId, devisNumber) => {
+    const conversationKey = `${proId}_${devisNumber}`;
+    return deletedConversations.includes(conversationKey);
+  };
+
+  const filterDeletedConversations = (messages) => {
+    if (!messages) return [];
+    return messages.filter(message => {
+      const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
+      const devisNumber = generateDemandeNumber(message);
+      return !isConversationDeleted(otherUserId, devisNumber);
+    });
+  };
+
+  // Fonctions de filtrage
+  const filterMessages = (messages) => {
+    if (!messages || !userRole) return [];
+    
+    return messages.filter(msg => {
+      const otherUserId = msg.senderId === currentUser.uid ? msg.receiverId : msg.senderId;
+      const devisNumber = generateDemandeNumber(msg);
+      const conversationKey = `${otherUserId}_${devisNumber}`;
+      const isDeleted = deletedConversations.includes(conversationKey);
+
+      // Si on veut voir les messages supprimés
+      if (showDeletedMessages) {
+        return isDeleted;
+      }
+      
+      // Si on ne veut pas voir les messages supprimés
+      return !isDeleted && (
+        userRole === 'administrateur' || 
+        msg.senderId === currentUser?.uid || 
+        msg.status === 'approved'
+      );
+    });
+  };
+
+  // Fonction pour filtrer les conversations en fonction de leur état de suppression
+  const filterConversations = (groups) => {
+    if (!groups) return {};
+    
+    return Object.fromEntries(
+      Object.entries(groups).filter(([groupKey, group]) => {
+        const isDeleted = deletedConversations.includes(
+          `${group.professional.id}_${group.demandeOrDevisNumber}`
+        );
+        // Si showDeletedMessages est true, on ne montre que les conversations supprimées
+        // Sinon, on ne montre que les conversations non supprimées
+        return showDeletedMessages ? isDeleted : !isDeleted;
+      })
+    );
   };
 
   // Composants de rendu
@@ -561,6 +652,28 @@ const Messages = () => {
       <span className={`status-badge ${config.class}`}>
         {config.icon} {config.text}
       </span>
+    );
+  };
+
+  const RestoreButton = ({ conversation }) => {
+    const isDeleted = deletedConversations.includes(
+      `${conversation.professional.id}_${conversation.demandeOrDevisNumber}`
+    );
+
+    if (!isDeleted) return null;
+
+    return (
+      <button
+        className="restore-conversation-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (window.confirm('Voulez-vous restaurer cette conversation ?')) {
+            handleRestoreConversation(conversation.professional.id, conversation.demandeOrDevisNumber);
+          }
+        }}
+      >
+        <FaTrashRestore /> Restaurer
+      </button>
     );
   };
 
@@ -636,6 +749,11 @@ const Messages = () => {
     );
   };
 
+  // Fonction pour filtrer les messages en fonction de showDeletedMessages
+  const toggleDeletedMessages = () => {
+    setShowDeletedMessages(prev => !prev);
+  };
+
   // Rendu principal
   if (!currentUser) return null;
   if (loading) return <div className="loading">Chargement des messages...</div>;
@@ -644,35 +762,37 @@ const Messages = () => {
     ? groupMessagesByProfessional(messages) 
     : {};
 
+  // Filtrer les conversations en fonction de showDeletedMessages
+  const filteredGroups = filterConversations(professionalGroups);
+
   return (
     <div className="messages-container">
-      {/* Colonne de gauche - Liste des professionnels */}
       <div className="professionals-list">
         <div className="professionals-header">
-          <h2>Conversations</h2>
+          <h2>Messages</h2>
+          <button 
+            className={`toggle-deleted-btn ${showDeletedMessages ? 'active' : ''}`}
+            onClick={toggleDeletedMessages}
+          >
+            {showDeletedMessages ? 'Masquer messages supprimés' : 'Voir messages supprimés'}
+          </button>
         </div>
         <div className="professionals-content">
-          {Object.entries(professionalGroups).length === 0 ? (
+          {Object.entries(filteredGroups).length === 0 ? (
             <div className="no-conversations">
-              <p>Aucune conversation</p>
+              <p>{showDeletedMessages ? 'Aucun message supprimé' : 'Aucune conversation'}</p>
             </div>
           ) : (
-            Object.entries(professionalGroups).map(([groupKey, group]) => {
-              const visibleMessages = filterMessages(group.messages);
-              if (visibleMessages.length === 0) return null;
-
-              const lastVisibleMessage = visibleMessages[0];
-              const isSelected = selectedMessage && 
-                (selectedMessage.devisNumber === group.demandeOrDevisNumber || 
-                selectedMessage.devisId === group.demandeOrDevisNumber?.substring(4)) &&
-                (selectedMessage.senderId === group.professional.id || 
-                selectedMessage.receiverId === group.professional.id);
+            Object.entries(filteredGroups).map(([groupKey, group]) => {
+              const isDeleted = deletedConversations.includes(
+                `${group.professional.id}_${group.demandeOrDevisNumber}`
+              );
 
               return (
                 <div
                   key={groupKey}
-                  className={`professional-item ${isSelected ? 'selected' : ''}`}
-                  onClick={() => setSelectedMessage(lastVisibleMessage)}
+                  className={`professional-item ${isDeleted ? 'deleted' : ''}`}
+                  onClick={() => !isDeleted && setSelectedMessage(group.lastMessage)}
                 >
                   <div className="professional-info">
                     <h3>{group.professional.displayName || group.professional.companyName}</h3>
@@ -686,26 +806,47 @@ const Messages = () => {
                       </p>
                     )}
                     <p className="last-message">
-                      {lastVisibleMessage?.content?.substring(0, 50)}
-                      {lastVisibleMessage?.content?.length > 50 ? '...' : ''}
-                      {lastVisibleMessage?.files?.length > 0 && (
-                        <span className="image-indicator"> 📷 {lastVisibleMessage.files.length} fichier(s)</span>
-                      )}
+                      {group.lastMessage?.content?.substring(0, 50)}
+                      {group.lastMessage?.content?.length > 50 ? '...' : ''}
                     </p>
-                    <p className="message-time">{formatTimestamp(lastVisibleMessage?.timestamp)}</p>
+                    <p className="message-time">
+                      {formatTimestamp(group.lastMessage?.timestamp)}
+                    </p>
                   </div>
                   <div className="professional-actions">
-                    <div className="actions-column">
-                      <button 
-                        className="delete-conversation-btn"
-                        onClick={(e) => handleDeleteClick(group.professional.id, group.demandeOrDevisNumber, e)}
+                    {isDeleted ? (
+                      <button
+                        className="restore-conversation-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Voulez-vous restaurer cette conversation ?')) {
+                            handleRestoreConversation(
+                              group.professional.id,
+                              group.demandeOrDevisNumber
+                            );
+                          }
+                        }}
                       >
-                        Supprimer
+                        <FaTrashRestore /> Restaurer
                       </button>
-                      {group.unreadCount > 0 && (
-                        <div className="unread-badge">{group.unreadCount}</div>
-                      )}
-                    </div>
+                    ) : (
+                      <button
+                        className="delete-conversation-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(
+                            group.professional.id,
+                            group.demandeOrDevisNumber,
+                            e
+                          );
+                        }}
+                      >
+                        <FaTrash />
+                      </button>
+                    )}
+                    {group.unreadCount > 0 && !isDeleted && (
+                      <div className="unread-badge">{group.unreadCount}</div>
+                    )}
                   </div>
                 </div>
               );
@@ -713,77 +854,98 @@ const Messages = () => {
           )}
         </div>
       </div>
-
-      {/* Colonne de droite - Conversation sélectionnée */}
-      <div className="conversation-view">
-        {selectedMessage ? (
-          <>
-            <div className="conversation-header">
-              <h2>
-                {users[selectedMessage.senderId === currentUser.uid 
-                  ? selectedMessage.receiverId 
-                  : selectedMessage.senderId]?.displayName || 'Conversation'}
-              </h2>
-            </div>
-            <div className="messages-list">
-              {(() => {
-                if (!selectedMessage) return null;
-                
-                const otherUserId = selectedMessage.senderId === currentUser.uid 
-                  ? selectedMessage.receiverId 
-                  : selectedMessage.senderId;
-                const demandeOrDevisNumber = generateDemandeNumber(selectedMessage);
-                const groupKey = `${otherUserId}_${demandeOrDevisNumber}`;
-                const groupMessages = professionalGroups[groupKey]?.messages || [];
-                
-                return filterMessages(groupMessages)
-                  .sort(sortMessages)
-                  .map(renderMessage);
-              })()}
-            </div>
-            <div className="message-input">
-              <form onSubmit={handleSendMessage}>
+      {selectedMessage ? (
+        <div className="conversation-view">
+          <div className="conversation-header">
+            <h2>
+              {users[selectedMessage.senderId === currentUser.uid 
+                ? selectedMessage.receiverId 
+                : selectedMessage.senderId]?.displayName || 'Conversation'}
+            </h2>
+            {selectedMessage.devisNumber && (
+              <p className="devis-number">
+                {selectedMessage.devisNumber.startsWith('DEM-') ? (
+                  `Demande N° ${selectedMessage.devisNumber.substring(4)}`
+                ) : (
+                  `Devis N° ${selectedMessage.devisNumber.substring(4)}`
+                )}
+              </p>
+            )}
+          </div>
+          <div className="messages-list">
+            {(() => {
+              if (!selectedMessage) return null;
+              
+              const otherUserId = selectedMessage.senderId === currentUser.uid 
+                ? selectedMessage.receiverId 
+                : selectedMessage.senderId;
+              const demandeOrDevisNumber = generateDemandeNumber(selectedMessage);
+              const groupKey = `${otherUserId}_${demandeOrDevisNumber}`;
+              const groupMessages = professionalGroups[groupKey]?.messages || [];
+              
+              return filterMessages(groupMessages)
+                .sort((a, b) => getMessageDate(b) - getMessageDate(a))
+                .map(message => (
+                  <div 
+                    key={message.id}
+                    className={`message ${message.senderId === currentUser.uid ? 'sent' : 'received'}`}
+                  >
+                    <div className="message-content">
+                      <p>{message.content}</p>
+                      {message.files && message.files.length > 0 && (
+                        <div className="message-images">
+                          {message.files.map((file, index) => (
+                            <img
+                              key={index}
+                              src={file.url}
+                              alt="Image jointe"
+                              onClick={() => {
+                                setSelectedImageUrl(file.url);
+                                setIsModalOpen(true);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <div className="message-meta">
+                        <span className="message-time">{formatTimestamp(message.timestamp)}</span>
+                        <MessageStatus status={message.status} />
+                      </div>
+                    </div>
+                  </div>
+                ));
+            })()}
+          </div>
+          <div className="message-input">
+            <form onSubmit={handleSendMessage}>
+              <div className="message-input-container">
                 <textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Écrivez votre message..."
                   disabled={isSending}
                 />
-                <div className="file-input-container">
-                  <input
-                    type="file"
-                    id="file-upload"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                  />
-                  <label htmlFor="file-upload">
-                    Ajouter des images
-                  </label>
-                  {selectedFiles.length > 0 && (
-                    <div className="selected-files">
-                      {selectedFiles.length} fichier(s) sélectionné(s)
-                    </div>
-                  )}
-                </div>
-                <button type="submit" disabled={isSending}>
+                <button type="submit" disabled={isSending || !newMessage.trim()}>
                   {isSending ? 'Envoi...' : 'Envoyer'}
                 </button>
-              </form>
+              </div>
               {messageError && <div className="error-message">{messageError}</div>}
-            </div>
-          </>
-        ) : (
-          <div className="no-conversation-selected">
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div className="no-conversation-selected">
+          <div className="empty-state">
             <FaEnvelope size={48} />
             <p>Sélectionnez une conversation pour afficher les messages</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
       {isModalOpen && selectedImageUrl && (
-        <div className="modal-overlay" onClick={closeModal}>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal}>×</button>
+            <button className="modal-close" onClick={() => setIsModalOpen(false)}>×</button>
             <img 
               src={selectedImageUrl} 
               alt="Image en grand"

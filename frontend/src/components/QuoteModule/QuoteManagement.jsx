@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, getDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, query, where, getDocs, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase-config';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -13,6 +13,7 @@ const QuoteManagement = () => {
   const { currentUser } = useAuth();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Créer une nouvelle demande de devis
   const createQuoteRequest = async (requestData) => {
@@ -127,11 +128,84 @@ const QuoteManagement = () => {
     }));
   };
 
-  // ... Reste du composant (UI, etc.)
+  // Effet pour charger les devis
+  useEffect(() => {
+    const fetchQuotes = async () => {
+      try {
+        setLoading(true);
+        const quotesRef = collection(db, 'quotes');
+        let q;
+
+        if (currentUser.role === 'administrateur') {
+          q = query(quotesRef, orderBy('createdAt', 'desc'));
+        } else {
+          q = query(
+            quotesRef,
+            where('userId', '==', currentUser.uid),
+            orderBy('createdAt', 'desc')
+          );
+        }
+
+        const snapshot = await getDocs(q);
+        const quotesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setQuotes(quotesData);
+      } catch (error) {
+        console.error('Erreur lors du chargement des devis:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (currentUser) {
+      fetchQuotes();
+    }
+  }, [currentUser]);
+
+  // Filtrer les devis en fonction de la recherche
+  const filteredQuotes = quotes.filter(quote => {
+    if (!searchQuery) return true;
+    
+    const devisNumber = quote.devisNumber?.toLowerCase() || '';
+    return devisNumber.includes(searchQuery.toLowerCase());
+  });
 
   return (
     <div className="quote-management">
-      {/* Implémentez votre interface utilisateur ici */}
+      {currentUser?.role === 'administrateur' && (
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="Rechercher un numéro de devis..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="search-input"
+          />
+        </div>
+      )}
+      
+      <div className="quotes-list">
+        {loading ? (
+          <div className="loading">Chargement des devis...</div>
+        ) : filteredQuotes.length === 0 ? (
+          <div className="no-quotes">
+            {searchQuery 
+              ? `Aucun devis trouvé pour "${searchQuery}"` 
+              : "Aucun devis disponible"}
+          </div>
+        ) : (
+          filteredQuotes.map(quote => (
+            <div key={quote.id} className="quote-item">
+              <h3>Devis N° {quote.devisNumber}</h3>
+              <p>Status: {quote.status}</p>
+              <p>Date: {quote.createdAt?.toDate().toLocaleDateString()}</p>
+              {/* Autres détails du devis */}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };

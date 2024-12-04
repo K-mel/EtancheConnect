@@ -1,0 +1,76 @@
+.mes-devis-content {
+  padding: 20px;
+}
+
+.devis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.devis-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.devis-card h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+}
+
+.devis-details {
+  margin-bottom: 20px;
+}
+
+.devis-details p {
+  margin: 8px 0;
+  color: #666;
+}
+
+.devis-details strong {
+  color: #333;
+}
+
+.devis-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.devis-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.accept-btn {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.accept-btn:hover {
+  background-color: #45a049;
+}
+
+.reject-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.reject-btn:hover {
+  background-color: #da190b;
+}
+
+.contact-btn {
+  background-color: #2196F3;
+  color: white;
+}
+
+.contact-btn:hover {
+  background-color: #1976D2;
+}
