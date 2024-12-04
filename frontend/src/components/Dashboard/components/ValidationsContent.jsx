@@ -10,6 +10,10 @@ export default function ValidationsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedDevis, setSelectedDevis] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [questionText, setQuestionText] = useState('');
+  const [questionError, setQuestionError] = useState('');
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -85,6 +89,61 @@ export default function ValidationsContent() {
     }
   };
 
+  const validateQuestion = (text) => {
+    // Regex pour détecter les numéros de téléphone (formats français)
+    const phoneRegex = /(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/;
+    
+    // Regex pour détecter les emails
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    
+    // Regex pour détecter les URLs
+    const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/;
+
+    if (phoneRegex.test(text)) {
+      return "Les numéros de téléphone ne sont pas autorisés dans les questions.";
+    }
+    
+    if (emailRegex.test(text)) {
+      return "Les adresses email ne sont pas autorisées dans les questions.";
+    }
+    
+    if (urlRegex.test(text)) {
+      return "Les liens URL ne sont pas autorisés dans les questions.";
+    }
+
+    return "";
+  };
+
+  const handleQuestionChange = (e) => {
+    const text = e.target.value;
+    setQuestionText(text);
+    const error = validateQuestion(text);
+    setQuestionError(error);
+  };
+
+  const handleQuestionSubmit = async () => {
+    const error = validateQuestion(questionText);
+    if (error) {
+      setQuestionError(error);
+      return;
+    }
+
+    // Votre logique existante pour envoyer la question
+    // ...
+  };
+
+  const handleAskQuestion = () => {
+    setIsQuestionModalOpen(true);
+    setQuestionText('');
+    setQuestionError('');
+  };
+
+  const handleCloseQuestionModal = () => {
+    setIsQuestionModalOpen(false);
+    setQuestionText('');
+    setQuestionError('');
+  };
+
   const renderDevisDetails = () => {
     if (!selectedDevis) return null;
 
@@ -129,6 +188,8 @@ export default function ValidationsContent() {
                       src={photo}
                       alt={`Photo ${index + 1}`}
                       className="devis-photo"
+                      onClick={() => setSelectedImage(photo)}
+                      style={{ cursor: 'pointer' }}
                     />
                   ))}
                 </div>
@@ -154,6 +215,72 @@ export default function ValidationsContent() {
               onClick={() => setSelectedDevis(null)}
             >
               Fermer
+            </button>
+            <button 
+              className="ask-question-button"
+              onClick={handleAskQuestion}
+            >
+              Poser une question
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFullscreenImage = () => {
+    if (!selectedImage) return null;
+    
+    return (
+      <div className="fullscreen-image" onClick={() => setSelectedImage(null)}>
+        <img src={selectedImage} alt="Image en plein écran" />
+      </div>
+    );
+  };
+
+  const renderQuestionModal = () => {
+    if (!isQuestionModalOpen) return null;
+
+    return (
+      <div className="modal-overlay" onClick={handleCloseQuestionModal}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <h3>Poser une question sur le devis</h3>
+          
+          <div className="question-info">
+            <p>Pour votre sécurité, ne sont pas autorisés dans les questions :</p>
+            <ul>
+              <li>Numéros de téléphone</li>
+              <li>Adresses email</li>
+              <li>Liens URL</li>
+            </ul>
+          </div>
+
+          <textarea 
+            placeholder="Écrivez votre question ici..." 
+            className="question-textarea"
+            value={questionText}
+            onChange={handleQuestionChange}
+          ></textarea>
+
+          {questionError && (
+            <div className="error-message">
+              {questionError}
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button 
+              className="submit-btn" 
+              onClick={handleQuestionSubmit}
+              disabled={!!questionError || !questionText.trim()}
+            >
+              Envoyer
+            </button>
+            <button 
+              className="cancel-btn"
+              onClick={handleCloseQuestionModal}
+            >
+              Annuler
             </button>
           </div>
         </div>
@@ -210,6 +337,8 @@ export default function ValidationsContent() {
       )}
       
       {renderDevisDetails()}
+      {renderFullscreenImage()}
+      {renderQuestionModal()}
     </div>
   );
 }

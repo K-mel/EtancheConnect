@@ -23,6 +23,11 @@ const MessagesContent = () => {
     type: 'all'
   });
 
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [messageToReject, setMessageToReject] = useState(null);
+  const [rejectError, setRejectError] = useState('');
+
   const getUserData = async (userId) => {
     if (!userId) return 'Utilisateur inconnu';
     
@@ -329,6 +334,54 @@ const MessagesContent = () => {
     }
   };
 
+  const handleOpenRejectModal = (message) => {
+    setMessageToReject(message);
+    setRejectReason('');
+    setRejectError('');
+    setIsRejectModalOpen(true);
+  };
+
+  const handleCloseRejectModal = () => {
+    setIsRejectModalOpen(false);
+    setMessageToReject(null);
+    setRejectReason('');
+    setRejectError('');
+  };
+
+  const handleRejectMessage = async () => {
+    if (!rejectReason.trim()) {
+      setRejectError('Veuillez expliquer la raison du rejet');
+      return;
+    }
+
+    try {
+      const messageRef = doc(db, 'messages', messageToReject.id);
+      await updateDoc(messageRef, {
+        status: 'rejected',
+        rejectedAt: Timestamp.now(),
+        rejectionReason: rejectReason
+      });
+
+      // Créer une notification pour l'expéditeur
+      await createMessageNotification(messageToReject.senderId, {
+        type: 'MESSAGE_REJECTED',
+        messageId: messageToReject.id,
+        reason: rejectReason
+      });
+
+      // Rafraîchir les messages
+      await fetchMessages();
+      if (showHistory) {
+        await fetchHistoryMessages(true);
+      }
+
+      handleCloseRejectModal();
+    } catch (error) {
+      console.error('Erreur lors du rejet du message:', error);
+      setRejectError('Une erreur est survenue lors du rejet du message');
+    }
+  };
+
   const renderMessage = (message) => {
     const isDevisMessage = message.type === 'devis_question';
     
@@ -391,7 +444,7 @@ const MessagesContent = () => {
           </button>
           <button
             className="reject-button"
-            onClick={() => handleMessageAction(message, 'reject')}
+            onClick={() => handleOpenRejectModal(message)}
           >
             <FaTimes /> Rejeter
           </button>
@@ -465,6 +518,51 @@ const MessagesContent = () => {
         </div>
         <div className="message-timestamp">
           {formatTimestamp(message.createdAt).toLocaleString()}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRejectModal = () => {
+    if (!isRejectModalOpen) return null;
+
+    return (
+      <div className="modal-overlay" onClick={handleCloseRejectModal}>
+        <div className="modal-content reject-modal" onClick={e => e.stopPropagation()}>
+          <h3>Rejeter le message</h3>
+          
+          <div className="reject-info">
+            <p>Veuillez expliquer la raison du rejet :</p>
+          </div>
+
+          <textarea 
+            placeholder="Expliquez pourquoi ce message est rejeté..." 
+            className="reject-textarea"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+          ></textarea>
+
+          {rejectError && (
+            <div className="error-message">
+              {rejectError}
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button 
+              className="submit-btn" 
+              onClick={handleRejectMessage}
+              disabled={!rejectReason.trim()}
+            >
+              Confirmer le rejet
+            </button>
+            <button 
+              className="cancel-btn"
+              onClick={handleCloseRejectModal}
+            >
+              Annuler
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -643,6 +741,7 @@ const MessagesContent = () => {
           </div>
         </div>
       )}
+      {renderRejectModal()}
     </div>
   );
 };

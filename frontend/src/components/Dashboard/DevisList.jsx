@@ -10,6 +10,15 @@ const DevisList = ({ userType }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedDevis, setSelectedDevis] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    description: '',
+    surface: '',
+    ville: '',
+    typeProjet: '',
+    address: '',
+    codePostal: ''
+  });
   const [messageContent, setMessageContent] = useState('');
   const [messageError, setMessageError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,19 +73,24 @@ const DevisList = ({ userType }) => {
         case 'particulier':
           q = query(
             collection(db, 'devis'),
-            where('userId', '==', currentUser.uid)
+            where('userId', '==', currentUser.uid),
+            orderBy('createdAt', 'desc')
           );
           break;
         
         case 'professionnel':
           q = query(
             collection(db, 'devis'),
-            where('status', '==', 'valide')
+            where('status', '==', 'valide'),
+            orderBy('createdAt', 'desc')
           );
           break;
         
         case 'administrateur':
-          q = query(collection(db, 'devis'));
+          q = query(
+            collection(db, 'devis'),
+            orderBy('createdAt', 'desc')
+          );
           break;
         
         default:
@@ -87,15 +101,23 @@ const DevisList = ({ userType }) => {
       const devisData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate().toLocaleString() || 'Date inconnue'
+        createdAt: doc.data().createdAt?.toDate() || new Date(0)
       }));
 
-      const sortedDevis = devisData.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-        return dateB - dateA;
-      });
-      setDevis(sortedDevis);
+      const sortedDevis = devisData.sort((a, b) => b.createdAt - a.createdAt);
+
+      const formattedDevis = sortedDevis.map(devis => ({
+        ...devis,
+        createdAt: devis.createdAt.toLocaleString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      }));
+
+      setDevis(formattedDevis);
     } catch (error) {
       console.error('Erreur lors de la récupération des devis:', error);
       setError('Une erreur est survenue lors du chargement des devis.');
@@ -307,7 +329,40 @@ const DevisList = ({ userType }) => {
       setIsSubmitting(false);
     }
   };
-  // Rendu des actions selon le rôle
+
+  const handleEditClick = () => {
+    setEditForm({
+      description: selectedDevis.description || '',
+      surface: selectedDevis.surface || '',
+      ville: selectedDevis.ville || '',
+      typeProjet: selectedDevis.typeProjet || '',
+      address: selectedDevis.address || '',
+      codePostal: selectedDevis.codePostal || ''
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const devisRef = doc(db, 'devis', selectedDevis.id);
+      await updateDoc(devisRef, {
+        ...editForm,
+        lastUpdated: serverTimestamp()
+      });
+      
+      // Mettre à jour l'état local
+      setSelectedDevis({
+        ...selectedDevis,
+        ...editForm
+      });
+      setIsEditing(false);
+      fetchDevis(); // Rafraîchir la liste
+    } catch (error) {
+      console.error('Erreur lors de la modification:', error);
+      alert('Une erreur est survenue lors de la modification du devis');
+    }
+  };
+
   const renderActions = (devis) => {
     if (userType === 'administrateur' && devis.status === 'en_attente') {
       return (
@@ -345,74 +400,120 @@ const DevisList = ({ userType }) => {
       <div className="devis-modal" onClick={() => setSelectedDevis(null)}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
-            <h3>Détails du devis</h3>
-            <button className="close-button" onClick={() => setSelectedDevis(null)}>&times;</button>
+            <h3>{isEditing ? 'Modifier le devis' : 'Détails du devis'}</h3>
+            <button className="close-button" onClick={() => {
+              setSelectedDevis(null);
+              setIsEditing(false);
+            }}>&times;</button>
           </div>
-          <div className="devis-details">
-            <p><strong>Date:</strong> {selectedDevis.createdAt}</p>
-            <p><strong>Type de projet:</strong> {selectedDevis.typeProjet}</p>
-            <p><strong>Surface:</strong> {selectedDevis.surface} m²</p>
-            <p><strong>Ville:</strong> {selectedDevis.ville}</p>
-            <p><strong>Status:</strong> {getStatusLabel(selectedDevis.status)}</p>
-            <p><strong>Description:</strong> {selectedDevis.description || 'Aucune description'}</p>
-            
-            {selectedDevis.photos && selectedDevis.photos.length > 0 && (
-              <div>
-                <h4>Photos du projet</h4>
-                <div className="devis-images">
-                  {selectedDevis.photos.map((photo, index) => (
-                    <div key={index} className="devis-image-container">
-                      <img
-                        src={photo}
-                        alt={`Photo ${index + 1}`}
-                        className="devis-image"
-                        onClick={() => setSelectedImage(photo)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {userType === 'professionnel' && selectedDevis.status === 'en_attente' && (
-            <div className="message-form">
-              <h4>Envoyer un message</h4>
-              <textarea
-                value={messageContent}
-                onChange={(e) => setMessageContent(e.target.value)}
-                placeholder="Écrivez votre message ici..."
-              />
-              {messageError && <p className="error-message">{messageError}</p>}
-              <button
-                onClick={handleSendMessage}
-                disabled={isSubmitting || !messageContent.trim()}
-              >
-                Envoyer
-              </button>
-            </div>
-          )}
-          {userType === 'professionnel' && selectedDevis.status === 'en_attente' && (
+
+          {isEditing && userType === 'particulier' ? (
             <div className="devis-form">
-              <h4>Envoyer un devis</h4>
-              <input
-                type="number"
-                value={devisAmount}
-                onChange={(e) => setDevisAmount(e.target.value)}
-                placeholder="Montant du devis"
-              />
-              <textarea
-                value={devisDetails}
-                onChange={(e) => setDevisDetails(e.target.value)}
-                placeholder="Détails du devis"
-              />
-              {messageError && <p className="error-message">{messageError}</p>}
-              <button
-                onClick={handleSendDevis}
-                disabled={isSubmitting || !devisAmount || !devisDetails.trim()}
-              >
-                Envoyer
-              </button>
+              <div className="form-group">
+                <label>Description du projet</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                  placeholder="Description détaillée des travaux"
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>Surface (m²)</label>
+                <input
+                  type="number"
+                  value={editForm.surface}
+                  onChange={(e) => setEditForm({...editForm, surface: e.target.value})}
+                  placeholder="Surface en m²"
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>Type de projet</label>
+                <select
+                  value={editForm.typeProjet}
+                  onChange={(e) => setEditForm({...editForm, typeProjet: e.target.value})}
+                  className="form-input"
+                >
+                  <option value="">Sélectionnez un type</option>
+                  <option value="etancheite">Étanchéité</option>
+                  <option value="isolation">Isolation</option>
+                  <option value="renovation">Rénovation</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Adresse</label>
+                <input
+                  type="text"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({...editForm, address: e.target.value})}
+                  placeholder="Adresse complète"
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>Ville</label>
+                <input
+                  type="text"
+                  value={editForm.ville}
+                  onChange={(e) => setEditForm({...editForm, ville: e.target.value})}
+                  placeholder="Ville"
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>Code Postal</label>
+                <input
+                  type="text"
+                  value={editForm.codePostal}
+                  onChange={(e) => setEditForm({...editForm, codePostal: e.target.value})}
+                  placeholder="Code postal"
+                  className="form-input"
+                />
+              </div>
+              <div className="button-group">
+                <button onClick={handleSaveEdit} className="submit-button">
+                  Enregistrer les modifications
+                </button>
+                <button onClick={() => setIsEditing(false)} className="cancel-button">
+                  Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="devis-details">
+              <p><strong>Date:</strong> {selectedDevis.createdAt}</p>
+              <p><strong>Type de projet:</strong> {selectedDevis.typeProjet}</p>
+              <p><strong>Surface:</strong> {selectedDevis.surface} m²</p>
+              <p><strong>Adresse:</strong> {selectedDevis.address}</p>
+              <p><strong>Ville:</strong> {selectedDevis.ville}</p>
+              <p><strong>Code Postal:</strong> {selectedDevis.codePostal}</p>
+              <p><strong>Status:</strong> {getStatusLabel(selectedDevis.status)}</p>
+              <p><strong>Description:</strong> {selectedDevis.description || 'Aucune description'}</p>
+
+              {userType === 'particulier' && selectedDevis.status !== 'refuse' && (
+                <button onClick={handleEditClick} className="submit-button">
+                  Modifier le devis
+                </button>
+              )}
+              
+              {selectedDevis.photos && selectedDevis.photos.length > 0 && (
+                <div>
+                  <h4>Photos du projet</h4>
+                  <div className="devis-images">
+                    {selectedDevis.photos.map((photo, index) => (
+                      <div key={index} className="devis-image-container">
+                        <img
+                          src={photo}
+                          alt={`Photo ${index + 1}`}
+                          className="devis-image"
+                          onClick={() => setSelectedImage(photo)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -422,18 +523,10 @@ const DevisList = ({ userType }) => {
 
   const renderFullscreenImage = () => {
     if (!selectedImage) return null;
-
+    
     return (
-      <div 
-        className="fullscreen-image-modal" 
-        onClick={() => setSelectedImage(null)}
-      >
-        <img 
-          src={selectedImage} 
-          alt="Vue agrandie" 
-          className="fullscreen-image"
-          onClick={e => e.stopPropagation()}
-        />
+      <div className="fullscreen-image" onClick={() => setSelectedImage(null)}>
+        <img src={selectedImage} alt="Image en plein écran" />
       </div>
     );
   };
