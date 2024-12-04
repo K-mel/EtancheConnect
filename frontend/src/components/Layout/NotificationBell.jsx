@@ -5,54 +5,42 @@ import { useAuth } from '../../contexts/AuthContext';
 import NotificationList from '../NotificationComponent/NotificationList';
 import { eventBus, LOGOUT_EVENT } from '../../utils/eventBus';
 import { FaBell } from 'react-icons/fa';
+import { ERROR_MESSAGES } from '../../utils/constants';
 import './NotificationBell.css';
 
 const NotificationBell = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { currentUser } = useAuth();
+  const [error, setError] = useState('');
 
-  console.log('=== NotificationBell rendu ===');
-  console.log('État actuel:', { showNotifications, unreadCount });
-  console.log('currentUser:', currentUser?.uid);
+  const handleError = (message, error) => {
+    const errorMessage = ERROR_MESSAGES[error?.code] || message || 'Une erreur est survenue';
+    setError(errorMessage);
+    setTimeout(() => setError(''), 5000);
+  };
 
   useEffect(() => {
     if (!currentUser) {
-      console.log('=== Pas d\'utilisateur connecté, sortie ===');
       return;
     }
   
-    console.log('=== Configuration de l\'écoute des notifications ===');
-    console.log('currentUser:', currentUser.uid);
-  
-    // Query pour obtenir uniquement les notifications non lues
     const q = query(
       collection(db, 'notifications'),
       where('userId', '==', currentUser.uid),
       where('read', '==', false),
       orderBy('createdAt', 'desc')
     );
-
-    console.log('=== Query configurée ===', {
-      collection: 'notifications',
-      userId: currentUser.uid,
-      read: false
-    });
   
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log('=== Mise à jour des notifications ===');
-      console.log('Nombre de notifications:', snapshot.docs.length);
-      snapshot.docs.forEach(doc => {
-        console.log('Notification:', { id: doc.id, ...doc.data() });
-      });
       setUnreadCount(snapshot.docs.length);
     }, (error) => {
-      console.error('=== Erreur dans l\'écoute des notifications ===', error);
-      console.error('Stack trace:', error.stack);
+      if (error.code !== 'permission-denied') {
+        handleError('Erreur lors du chargement des notifications', error);
+      }
     });
   
     return () => {
-      console.log('=== Nettoyage de l\'écoute des notifications ===');
       unsubscribe();
     };
   }, [currentUser]);
@@ -63,6 +51,7 @@ const NotificationBell = () => {
 
   return (
     <div className="notification-bell-container">
+      {error && <div className="notification-error">{error}</div>}
       <button 
         className="notification-bell-button" 
         onClick={toggleNotifications}

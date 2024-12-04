@@ -13,6 +13,7 @@ import {
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import '../styles/apercu.css';
+import RecentActivityList from './RecentActivityList';
 
 const AperçuContent = ({ userRole, handleTabChange }) => {
   const [stats, setStats] = useState({
@@ -71,6 +72,32 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           const devisEnAttenteSnapshot = await getDocs(devisEnAttenteQuery);
           statsData.devisEnAttente = devisEnAttenteSnapshot.size;
 
+          // Récupérer les activités récentes
+          const recentActivitiesQuery = query(
+            collection(db, 'activites'),
+            orderBy('timestamp', 'desc'),
+            limit(5)
+          );
+          const recentActivitiesSnapshot = await getDocs(recentActivitiesQuery);
+          
+          const activities = recentActivitiesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              type: data.type,
+              title: data.title,
+              description: data.description,
+              time: new Date(data.timestamp.toDate()).toLocaleString('fr-FR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              })
+            };
+          });
+
+          setRecentActivity(activities);
         } else {
           // Pour les autres utilisateurs, récupérer leurs données spécifiques
           let devisQuery = query(
@@ -98,41 +125,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           statsData.messages = messagesSnapshot.size;
         }
 
-        // Récupérer les activités récentes
-        let activities = [];
-        try {
-          const activityQuery = query(
-            collection(db, 'activites'),
-            userRole === 'administrateur' ? orderBy('timestamp', 'desc') : where('userId', '==', user.uid),
-            limit(5)
-          );
-          const activitySnapshot = await getDocs(activityQuery);
-
-          activities = activitySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              icon: getActivityIcon(data.type),
-              title: data.titre || 'Activité',
-              description: data.description || 'Aucune description',
-              time: formatTime(data.timestamp),
-              color: getActivityColor(data.type)
-            };
-          });
-        } catch (activityError) {
-          console.warn('Erreur lors de la récupération des activités:', activityError);
-          activities = [
-            {
-              icon: <FaClock />,
-              title: 'Tableau de bord',
-              description: 'Bienvenue sur votre espace',
-              time: 'Maintenant',
-              color: '#f59e0b'
-            }
-          ];
-        }
-
         setStats(statsData);
-        setRecentActivity(activities);
         setLoading(false);
       } catch (error) {
         console.error('Erreur lors de la récupération des données:', error);
@@ -257,7 +250,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
   }
 
   return (
-    <div className="apercu-content">
+    <div className="apercu-container">
       <div className="stats-grid">
         {getStatsList().map((stat, index) => (
           <div 
@@ -277,27 +270,9 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         ))}
       </div>
 
-      <div className="recent-activity">
-        <h2>Activité Récente</h2>
-        {recentActivity.length > 0 ? (
-          <div className="activity-list">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="activity-item">
-                <div className="activity-icon" style={{ color: activity.color }}>
-                  {activity.icon}
-                </div>
-                <div className="activity-details">
-                  <h3>{activity.title}</h3>
-                  <p>{activity.description}</p>
-                  <span className="activity-time">{activity.time}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="no-activity">Aucune activité récente</p>
-        )}
-      </div>
+      {userRole === 'administrateur' && (
+        <RecentActivityList activities={recentActivity} />
+      )}
     </div>
   );
 };

@@ -99,10 +99,10 @@ export const register = async (email, password, role, userData) => {
               // Créer un nom de fichier unique
               const extension = file.name.split('.').pop();
               const fileName = `${key}_${Date.now()}.${extension}`;
-              
+　　 　 　 　
               // Créer une référence avec le bon chemin
               const storageRef = ref(storage, `documents/${createdUser.uid}/${fileName}`);
-              
+　　 　 　 　
               // Définir les métadonnées
               const metadata = {
                 contentType: file.type,
@@ -115,7 +115,7 @@ export const register = async (email, password, role, userData) => {
               // Upload avec métadonnées
               const snapshot = await uploadBytes(storageRef, file, metadata);
               const downloadURL = await getDownloadURL(snapshot.ref);
-              
+　　 　 　 　
               uploadedDocs[key] = {
                 url: downloadURL,
                 fileName,
@@ -123,7 +123,6 @@ export const register = async (email, password, role, userData) => {
                 uploadedAt: new Date().toISOString()
               };
             } catch (error) {
-              console.error(`Erreur lors de l'upload du document ${key}:`, error);
               throw new Error(`Erreur lors de l'upload du document ${key}`);
             }
           }
@@ -153,14 +152,12 @@ export const register = async (email, password, role, userData) => {
 
     return createdUser;
   } catch (error) {
-    console.error('Erreur lors de l\'inscription:', error);
-    
     // Si une erreur se produit après la création de l'utilisateur, on le supprime
     if (createdUser) {
       try {
         await createdUser.delete();
       } catch (deleteError) {
-        console.error('Erreur lors de la suppression de l\'utilisateur après échec:', deleteError);
+        throw deleteError;
       }
     }
     
@@ -174,8 +171,6 @@ export const register = async (email, password, role, userData) => {
 // Fonction de connexion
 export const login = async (email, password) => {
   try {
-    console.log('Tentative de connexion avec email:', email);
-    
     // Vérification basique du format email
     if (!email || !email.includes('@')) {
       throw new Error('Format d\'email invalide');
@@ -207,11 +202,6 @@ export const login = async (email, password) => {
       throw new Error('Données utilisateur non trouvées');
     }
   } catch (error) {
-    console.error('Erreur de connexion:', {
-      code: error.code,
-      message: error.message
-    });
-    
     throw {
       code: error.code,
       message: getErrorMessage(error)
@@ -227,7 +217,6 @@ export const logout = async () => {
     localStorage.removeItem('userData');
     return true;
   } catch (error) {
-    console.error('Erreur lors de la déconnexion:', error);
     throw error;
   }
 };
@@ -293,7 +282,6 @@ export const promoteToAdmin = async (userId) => {
     }, { merge: true });
     return true;
   } catch (error) {
-    console.error('Erreur lors de la promotion en administrateur:', error);
     throw error;
   }
 };

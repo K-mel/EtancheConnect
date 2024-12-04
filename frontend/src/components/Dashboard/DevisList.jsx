@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, ser
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
+import { validateQuestionContent } from '../../utils/questionValidation';
 import './styles/devis.css';
 
 const DevisList = ({ userType }) => {
@@ -271,8 +272,9 @@ const DevisList = ({ userType }) => {
   };
 
   const handleQuestionSubmit = async (devisId, particulierId) => {
-    if (!questionContent.trim()) {
-      setMessageError('Veuillez entrer votre question');
+    const validation = validateQuestionContent(questionContent);
+    if (!validation.isValid) {
+      setMessageError(validation.error);
       return;
     }
 

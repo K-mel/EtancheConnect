@@ -1,20 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  writeBatch, 
-  serverTimestamp, 
-  arrayUnion 
+  collection, query, where, getDocs, orderBy, doc, getDoc, 
+  setDoc, addDoc, updateDoc, deleteDoc, writeBatch, 
+  serverTimestamp, arrayUnion 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase';
@@ -23,9 +12,24 @@ import { validateMessageContent, sanitizeMessageContent } from '../../utils/mess
 import { FaEnvelope } from 'react-icons/fa';
 import './Messages.css';
 import { createMessageNotification, createPendingMessageNotification } from '../../services/notificationService';
+import { logActivity, ActivityTypes } from '../../utils/activityUtils';
 
+// Constantes pour les messages d'erreur
+const ERROR_MESSAGES = {
+  INIT: "Erreur lors de l'initialisation des messages",
+  LOAD: "Erreur lors du chargement des messages",
+  DELETE: "Erreur lors de la suppression de la conversation",
+  UPLOAD: "Erreur lors de l'upload des images",
+  SEND: "Erreur lors de l'envoi du message",
+  APPROVE: "Erreur lors de l'approbation du message",
+  REJECT: "Erreur lors du rejet du message",
+  NOT_FOUND: "Message non trouvé",
+  INVALID_IDS: "Message invalide - Informations manquantes",
+  NOTIFICATION: "Le message a été approuvé mais la notification n'a pas pu être envoyée"
+};
 
 const Messages = () => {
+  // États
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
@@ -43,7 +47,27 @@ const Messages = () => {
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deletedConversations, setDeletedConversations] = useState([]);
+  
+  // Utilitaires
+  const getMessageDate = (message) => {
+    if (!message?.timestamp) return new Date(0);
+    return message.timestamp.toDate?.() || new Date(message.timestamp);
+  };
 
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate?.() || new Date(timestamp);
+    return date.toLocaleString();
+  };
+
+  const handleError = (error, errorType, duration = 5000) => {
+    const errorMessage = ERROR_MESSAGES[errorType] || "Une erreur est survenue";
+    setMessageError(errorMessage);
+    setTimeout(() => setMessageError(''), duration);
+    return null;
+  };
+
+  // Effets
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
@@ -52,7 +76,6 @@ const Messages = () => {
 
     const initializeMessages = async () => {
       try {
-        // Get user role first
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists()) {
           const role = userDoc.data().role;
@@ -63,8 +86,7 @@ const Messages = () => {
           }
         }
       } catch (error) {
-        console.error("Erreur lors de l'initialisation:", error);
-        setMessageError("Erreur lors du chargement des messages");
+        handleError(error, 'INIT');
       }
     };
 
@@ -73,375 +95,21 @@ const Messages = () => {
 
   useEffect(() => {
     const loadDeletedMessages = async () => {
-      if (currentUser) {
+      if (!currentUser) return;
+      
+      try {
         const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
         const deletedMessagesDoc = await getDoc(deletedMessagesRef);
         if (deletedMessagesDoc.exists()) {
-          const deletedData = deletedMessagesDoc.data();
-          setDeletedConversations(deletedData.deletedConversations || []);
+          setDeletedConversations(deletedMessagesDoc.data().deletedConversations || []);
         }
+      } catch (error) {
+        handleError(error, 'LOAD');
       }
     };
 
     loadDeletedMessages();
   }, [currentUser]);
-
-  const fetchMessages = async (userRole) => {
-    if (!currentUser) return;
-
-    try {
-      setLoading(true);
-      setMessageError(null);
-
-      // Fetch all users first
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
-      const usersData = {};
-      usersSnapshot.forEach((doc) => {
-        usersData[doc.id] = { id: doc.id, ...doc.data() };
-      });
-      setUsers(usersData);
-
-      // Récupérer la liste des conversations supprimées par l'utilisateur
-      const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
-      const deletedMessagesDoc = await getDoc(deletedMessagesRef);
-      const deletedConvs = deletedMessagesDoc.exists() 
-        ? deletedMessagesDoc.data().deletedConversations || []
-        : [];
-      
-      // Mettre à jour l'état local des conversations supprimées
-      setDeletedConversations(deletedConvs);
-
-      // Requête pour récupérer les messages
-      const messagesRef = collection(db, 'messages');
-      let q;
-
-      if (userRole === 'administrateur') {
-        q = query(messagesRef);
-      } else {
-        q = query(
-          messagesRef,
-          where('participants', 'array-contains', currentUser.uid)
-        );
-      }
-
-      const querySnapshot = await getDocs(q);
-      const newMessages = [];
-
-      querySnapshot.forEach((doc) => {
-        const messageData = doc.data();
-        const otherUserId = messageData.senderId === currentUser.uid 
-          ? messageData.receiverId 
-          : messageData.senderId;
-        
-        // Ne pas inclure les messages des conversations supprimées
-        if (!deletedConvs.includes(otherUserId)) {
-          newMessages.push({
-            id: doc.id,
-            ...messageData
-          });
-        }
-      });
-
-      //console.log('Messages chargés:', newMessages.length);
-      setMessages(newMessages);
-
-    } catch (error) {
-      console.error("Erreur lors du chargement des messages:", error);
-      setMessageError("Une erreur est survenue lors du chargement des messages");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteConversation = async (proId) => {
-    try {
-      // Créer ou mettre à jour le document de messages supprimés de l'utilisateur
-      const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
-      const deletedMessagesDoc = await getDoc(deletedMessagesRef);
-      
-      // Préparer la nouvelle liste des conversations supprimées
-      let newDeletedConversations = [];
-      
-      if (deletedMessagesDoc.exists()) {
-        const existingDeleted = deletedMessagesDoc.data().deletedConversations || [];
-        if (!existingDeleted.includes(proId)) {
-          newDeletedConversations = [...existingDeleted, proId];
-          await updateDoc(deletedMessagesRef, {
-            deletedConversations: newDeletedConversations,
-            updatedAt: serverTimestamp()
-          });
-        }
-      } else {
-        newDeletedConversations = [proId];
-        await setDoc(deletedMessagesRef, {
-          deletedConversations: newDeletedConversations,
-          userId: currentUser.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      // Mettre à jour l'état local
-      setDeletedConversations(newDeletedConversations);
-      
-      // Filtrer les messages
-      setMessages(prevMessages => 
-        prevMessages.filter(msg => {
-          const autreUtilisateur = msg.senderId === currentUser.uid ? msg.receiverId : msg.senderId;
-          return autreUtilisateur !== proId;
-        })
-      );
-
-      // Réinitialiser le message sélectionné si nécessaire
-      if (selectedMessage) {
-        const autreUtilisateur = selectedMessage.senderId === currentUser.uid 
-          ? selectedMessage.receiverId 
-          : selectedMessage.senderId;
-        if (autreUtilisateur === proId) {
-          setSelectedMessage(null);
-        }
-      }
-
-    } catch (error) {
-      console.error('Erreur lors de la suppression de la conversation:', error);
-      setMessageError('Erreur lors de la suppression de la conversation');
-    }
-  };
-
-  const fetchPendingMessages = async () => {
-    if (userRole !== 'administrateur') return;
-
-    try {
-      const messagesRef = collection(db, 'messages');
-      const pendingQuery = query(
-        messagesRef,
-        where('status', '==', 'pending')
-      );
-
-      const querySnapshot = await getDocs(pendingQuery);
-      const pendingMsgs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      setPendingMessages(pendingMsgs);
-    } catch (error) {
-      console.error("Erreur lors de la récupération des messages en attente:", error);
-    }
-  };
-
-  const handleFileSelect = (event) => {
-    if (!currentUser) return;
-
-    const files = Array.from(event.target.files);
-   // console.log("Fichiers sélectionnés:", files);
-    
-    const validFiles = files.filter(file => {
-      const isValid = file.type.startsWith('image/');
-      const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB max
-     // console.log("Vérification du fichier:", file.name, "Type:", file.type, "Taille:", file.size);
-      return isValid && isValidSize;
-    });
-
-  //  console.log("Fichiers valides:", validFiles);
-
-    if (validFiles.length !== files.length) {
-      setMessageError("Certains fichiers ont été ignorés. Seules les images de moins de 5MB sont acceptées.");
-    }
-
-    setSelectedFiles(validFiles);
-  };
-
-  const uploadImages = async (files) => {
-    if (!currentUser) return [];
-    
-    const uploadedUrls = [];
-    
-    for (const file of files) {
-      const fileName = `message_images/${Date.now()}_${file.name}`;
-      const imageRef = ref(storage, fileName);
-      
-      try {
-        await uploadBytes(imageRef, file);
-        const url = await getDownloadURL(imageRef);
-        uploadedUrls.push(url);
-      } catch (error) {
-        console.error("Erreur lors de l'upload de l'image:", error);
-        throw error;
-      }
-    }
-    
-    return uploadedUrls;
-  };
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!selectedMessage || !newMessage.trim()) return;
-
-    try {
-      setIsSending(true);
-      const receiverId = selectedMessage.senderId === currentUser.uid
-        ? selectedMessage.receiverId
-        : selectedMessage.senderId;
-
-      const messageData = {
-        content: newMessage.trim(),
-        senderId: currentUser.uid,
-        receiverId: receiverId,
-        timestamp: serverTimestamp(),
-        status: 'pending',
-        read: false,
-        participants: [currentUser.uid, receiverId],
-        files: []
-      };
-
-      const uploadedFiles = await uploadImages(selectedFiles);
-      if (uploadedFiles.length > 0) {
-        messageData.files = uploadedFiles;
-      }
-
-      // Ajouter le message à Firestore
-      const docRef = await addDoc(collection(db, 'messages'), messageData);
-      
-      // Créer une notification pour l'administrateur
-      await createPendingMessageNotification(currentUser.uid, { 
-        ...messageData, 
-        id: docRef.id 
-      });
-
-      setNewMessage('');
-      setSelectedFiles([]);
-      setMessageError('');
-
-      // Refresh messages
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        const role = userDoc.data().role;
-        await fetchMessages(role);
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi du message:', error);
-      setMessageError('Erreur lors de l\'envoi du message');
-    } finally {
-      setIsSending(false);
-    }
-};
-
-// Dans Messages.jsx
-const approveMessage = async (messageId) => {
-  try {
-    console.log('=== Début de l\'approbation ===');
-    console.log('messageId:', messageId);
-    
-    const messageRef = doc(db, 'messages', messageId);
-    const messageSnapshot = await getDoc(messageRef);
-    
-    if (!messageSnapshot.exists()) {
-      console.error('Message non trouvé');
-      return;
-    }
-
-    const messageData = messageSnapshot.data();
-    console.log('=== Données complètes du message ===', {
-      id: messageId,
-      ...messageData,
-      createdAt: messageData.createdAt?.toDate?.(),
-      receiverId: messageData.receiverId,
-      senderId: messageData.senderId,
-      content: messageData.content
-    });
-
-    // Vérifier que nous avons bien les IDs nécessaires
-    if (!messageData.receiverId || !messageData.senderId) {
-      console.error('Message invalide - IDs manquants:', messageData);
-      return;
-    }
-
-    await updateDoc(messageRef, {
-      status: 'approved',
-      approvedAt: serverTimestamp()
-    });
-
-    try {
-      console.log('=== Tentative de création de notification ===');
-      console.log('receiverId:', messageData.receiverId);
-      console.log('senderId:', messageData.senderId);
-      console.log('messageData:', { ...messageData, id: messageId });
-      
-      const notificationId = await createMessageNotification(
-        messageData.receiverId,
-        messageData.senderId,
-        { ...messageData, id: messageId },
-        true
-      );
-      console.log('=== Notification créée avec succès ===');
-      console.log('notificationId:', notificationId);
-    } catch (notifError) {
-      console.error('=== Erreur de notification ===', notifError);
-      console.error('Stack trace:', notifError.stack);
-    }
-
-    // Refresh messages for admin
-    if (userRole === 'administrateur') {
-      await fetchMessages(userRole);
-      await fetchPendingMessages();
-    }
-
-    setMessageError('Message approuvé avec succès');
-  } catch (error) {
-    console.error('=== Erreur générale ===', error);
-    console.error('Stack trace:', error.stack);
-    setMessageError('Erreur lors de l\'approbation du message');
-  }
-};
-  const rejectMessage = async (messageId) => {
-    try {
-      const messageRef = doc(db, 'messages', messageId);
-      const messageDoc = await getDoc(messageRef);
-      
-      if (!messageDoc.exists()) {
-        console.error('Message non trouvé');
-        return;
-      }
-
-      await updateDoc(messageRef, {
-        status: 'rejected',
-        rejectedAt: serverTimestamp()
-      });
-
-      // Refresh messages for admin
-      if (userRole === 'administrateur') {
-        await fetchMessages(userRole);
-        await fetchPendingMessages();
-      }
-
-      setMessageError('Message rejeté');
-      setTimeout(() => setMessageError(''), 3000);
-    } catch (error) {
-      console.error('Erreur lors du rejet du message:', error);
-      setMessageError('Erreur lors du rejet du message');
-    }
-  };
-
-  const markMessageAsRead = async (messageId) => {
-    try {
-      const messageRef = doc(db, 'messages', messageId);
-      const messageDoc = await getDoc(messageRef);
-      
-      if (!messageDoc.exists()) return;
-      
-      const messageData = messageDoc.data();
-      if (messageData.receiverId === currentUser.uid && !messageData.read) {
-        await updateDoc(messageRef, {
-          read: true,
-          readAt: serverTimestamp()
-        });
-      }
-    } catch (error) {
-      console.error('Erreur lors du marquage du message comme lu:', error);
-    }
-  };
 
   useEffect(() => {
     if (selectedMessage) {
@@ -449,130 +117,411 @@ const approveMessage = async (messageId) => {
     }
   }, [selectedMessage]);
 
-  const filterMessages = (messages) => {
-    if (!messages || !userRole) return [];
-    
-    return messages.filter(msg => {
-      // Les administrateurs voient tous les messages
-      if (userRole === 'administrateur') return true;
-      
-      // Le sender voit ses propres messages en attente
-      if (msg.senderId === currentUser?.uid) return true;
-      
-      // Les autres ne voient que les messages approuvés
-      return msg.status === 'approved';
-    });
+  // Fonctions de gestion des messages
+  const fetchMessages = async (userRole) => {
+    if (!currentUser) return;
+
+    try {
+      setLoading(true);
+      setMessageError('');
+
+      // Récupération des utilisateurs
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersData = {};
+      usersSnapshot.forEach((doc) => {
+        usersData[doc.id] = { id: doc.id, ...doc.data() };
+      });
+      setUsers(usersData);
+
+      // Récupération des conversations supprimées
+      const deletedMessagesDoc = await getDoc(doc(db, 'deletedMessages', currentUser.uid));
+      const deletedConvs = deletedMessagesDoc.exists() 
+        ? deletedMessagesDoc.data().deletedConversations || []
+        : [];
+      setDeletedConversations(deletedConvs);
+
+      // Requête des messages
+      const messagesRef = collection(db, 'messages');
+      const q = userRole === 'administrateur'
+        ? query(messagesRef)
+        : query(messagesRef, where('participants', 'array-contains', currentUser.uid));
+
+      const querySnapshot = await getDocs(q);
+      const newMessages = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(msg => !deletedConvs.includes(
+          msg.senderId === currentUser.uid ? msg.receiverId : msg.senderId
+        ));
+
+      setMessages(newMessages);
+    } catch (error) {
+      handleError(error, 'LOAD');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const groupMessagesByProfessional = (messages) => {
-    const groups = {};
-    
-    // Add null check and ensure messages is an array
-    if (!messages || !Array.isArray(messages)) {
-      return {};
+  const fetchPendingMessages = async () => {
+    if (userRole !== 'administrateur') return;
+
+    try {
+      const pendingQuery = query(
+        collection(db, 'messages'),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(pendingQuery);
+      setPendingMessages(querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })));
+    } catch (error) {
+      handleError(error, 'LOAD');
     }
-    
-    messages.forEach(message => {
-      const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
-      const otherUser = users[otherUserId];
+  };
+
+    // Gestion des fichiers
+    const handleFileSelect = (event) => {
+      if (!currentUser) return;
+  
+      const files = Array.from(event.target.files);
+      const validFiles = files.filter(file => {
+        const isValid = file.type.startsWith('image/');
+        const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB max
+        return isValid && isValidSize;
+      });
+  
+      if (validFiles.length !== files.length) {
+        setMessageError("Seules les images de moins de 5MB sont acceptées.");
+        setTimeout(() => setMessageError(''), 3000);
+      }
+  
+      setSelectedFiles(validFiles);
+    };
+  
+    const uploadImages = async (files) => {
+      if (!files.length) return [];
       
-      if (otherUser) {
-        if (!groups[otherUserId]) {
-          groups[otherUserId] = {
-            professional: otherUser,
-            messages: [],
-            lastMessage: null,
-            unreadCount: 0
-          };
+      try {
+        const uploadedUrls = await Promise.all(
+          files.map(async (file) => {
+            const fileName = `message_images/${Date.now()}_${file.name}`;
+            const imageRef = ref(storage, fileName);
+            await uploadBytes(imageRef, file);
+            return getDownloadURL(imageRef);
+          })
+        );
+        return uploadedUrls;
+      } catch (error) {
+        handleError(error, 'UPLOAD');
+        throw error;
+      }
+    };
+  
+    // Gestion des messages
+    const handleSendMessage = async (e) => {
+      e.preventDefault();
+      if (!selectedMessage || !newMessage.trim()) return;
+  
+      try {
+        setIsSending(true);
+        setMessageError('');
+  
+        const receiverId = selectedMessage.senderId === currentUser.uid
+          ? selectedMessage.receiverId
+          : selectedMessage.senderId;
+  
+        const messageData = {
+          content: newMessage.trim(),
+          senderId: currentUser.uid,
+          receiverId,
+          timestamp: serverTimestamp(),
+          status: 'pending',
+          read: false,
+          participants: [currentUser.uid, receiverId],
+          files: []
+        };
+  
+        if (selectedFiles.length) {
+          const uploadedFiles = await uploadImages(selectedFiles);
+          messageData.files = uploadedFiles;
         }
+  
+        const docRef = await addDoc(collection(db, 'messages'), messageData);
+        await logActivity(
+          ActivityTypes.MESSAGE,
+          'Nouveau message envoyé',
+          `Message envoyé à ${users[receiverId]?.displayName || 'un utilisateur'}`,
+          currentUser.uid
+        );
+        await createPendingMessageNotification(currentUser.uid, { 
+          ...messageData, 
+          id: docRef.id 
+        });
+  
+        setNewMessage('');
+        setSelectedFiles([]);
         
-        // N'ajouter que les messages visibles selon le rôle
-        if (filterMessages([message]).length > 0) {
-          groups[otherUserId].messages.push(message);
+        // Rafraîchir les messages
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          await fetchMessages(userDoc.data().role);
+        }
+      } catch (error) {
+        handleError(error, 'SEND');
+      } finally {
+        setIsSending(false);
+      }
+    };
+  
+    const approveMessage = async (messageId) => {
+      try {
+        const messageRef = doc(db, 'messages', messageId);
+        const messageSnapshot = await getDoc(messageRef);
+        
+        if (!messageSnapshot.exists()) {
+          return handleError(null, 'NOT_FOUND');
+        }
+  
+        const messageData = messageSnapshot.data();
+        if (!messageData.receiverId || !messageData.senderId) {
+          return handleError(null, 'INVALID_IDS');
+        }
+  
+        await updateDoc(messageRef, {
+          status: 'approved',
+          approvedAt: serverTimestamp()
+        });
+
+        await logActivity(
+          ActivityTypes.MESSAGE,
+          'Message approuvé',
+          `Message de ${users[messageData.senderId]?.displayName || 'utilisateur'} approuvé`,
+          currentUser.uid
+        );
+  
+        try {
+          await createMessageNotification(
+            messageData.receiverId,
+            messageData.senderId,
+            { ...messageData, id: messageId },
+            true
+          );
+        } catch (notifError) {
+          handleError(notifError, 'NOTIFICATION');
+        }
+  
+        if (userRole === 'administrateur') {
+          await Promise.all([
+            fetchMessages(userRole),
+            fetchPendingMessages()
+          ]);
+        }
+  
+        setMessageError('Message approuvé avec succès');
+        setTimeout(() => setMessageError(''), 3000);
+      } catch (error) {
+        handleError(error, 'APPROVE');
+      }
+    };
+
+    const rejectMessage = async (messageId) => {
+      try {
+        const messageRef = doc(db, 'messages', messageId);
+        const messageSnapshot = await getDoc(messageRef);
+        
+        if (!messageSnapshot.exists()) {
+          return handleError(null, 'NOT_FOUND');
+        }
+    
+        const messageData = messageSnapshot.data();
+        if (!messageData.receiverId || !messageData.senderId) {
+          return handleError(null, 'INVALID_IDS');
+        }
+    
+        await updateDoc(messageRef, {
+          status: 'rejected',
+          rejectedAt: serverTimestamp()
+        });
+    
+        await logActivity(
+          ActivityTypes.MESSAGE,
+          'Message rejeté',
+          `Message de ${users[messageData.senderId]?.displayName || 'utilisateur'} rejeté`,
+          currentUser.uid
+        );
+    
+        if (userRole === 'administrateur') {
+          await Promise.all([
+            fetchMessages(userRole),
+            fetchPendingMessages()
+          ]);
+        }
+      } catch (error) {
+        handleError(error, 'REJECT');
+      }
+    };
+
+  const markMessageAsRead = async (messageId) => {
+    try {
+      const messageRef = doc(db, 'messages', messageId);
+      const messageDoc = await getDoc(messageRef);
+      
+      if (messageDoc.exists()) {
+        const messageData = messageDoc.data();
+        if (messageData.receiverId === currentUser.uid && !messageData.read) {
+          await updateDoc(messageRef, {
+            read: true,
+            readAt: serverTimestamp()
+          });
+        }
+      }
+    } catch (error) {
+      // Silently handle read status errors
+    }
+  };
+
+    // Fonctions utilitaires de filtrage et de tri
+    const filterMessages = (messages) => {
+      if (!messages || !userRole) return [];
+      
+      return messages.filter(msg => {
+        if (userRole === 'administrateur') return true;
+        if (msg.senderId === currentUser?.uid) return true;
+        return msg.status === 'approved';
+      });
+    };
+  
+    const groupMessagesByProfessional = (messages) => {
+      const groups = {};
+      
+      if (!messages || !Array.isArray(messages)) {
+        return {};
+      }
+      
+      messages.forEach(message => {
+        const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
+        const otherUser = users[otherUserId];
+        
+        if (otherUser) {
+          if (!groups[otherUserId]) {
+            groups[otherUserId] = {
+              professional: otherUser,
+              messages: [],
+              lastMessage: null,
+              unreadCount: 0
+            };
+          }
           
-          if (!message.read && message.senderId === otherUserId) {
-            groups[otherUserId].unreadCount++;
+          if (filterMessages([message]).length > 0) {
+            groups[otherUserId].messages.push(message);
+            
+            if (!message.read && message.senderId === otherUserId) {
+              groups[otherUserId].unreadCount++;
+            }
           }
         }
+      });
+  
+      Object.values(groups).forEach(group => {
+        if (group.messages.length > 0) {
+          group.messages.sort(sortMessages);
+          group.lastMessage = group.messages[0];
+        }
+      });
+  
+      return Object.fromEntries(
+        Object.entries(groups).filter(([_, group]) => group.messages.length > 0)
+      );
+    };
+  
+    const sortMessages = (a, b) => {
+      const dateA = getMessageDate(a);
+      const dateB = getMessageDate(b);
+      return dateB - dateA;  // Tri décroissant (plus récent en premier)
+    };
+  
+    // Gestion des actions UI
+    const closeModal = () => {
+      setSelectedImageUrl(null);
+      setIsModalOpen(false);
+    };
+  
+    const handleDeleteClick = (proId, e) => {
+      e.stopPropagation();
+      if (window.confirm('Voulez-vous vraiment supprimer cette conversation ? Elle sera masquée de votre liste mais restera accessible à l\'autre utilisateur.')) {
+        handleDeleteConversation(proId);
       }
-    });
+    };
+  
+    const handleDeleteConversation = async (proId) => {
+      try {
+        const deletedMessagesRef = doc(db, 'deletedMessages', currentUser.uid);
+        const deletedMessagesDoc = await getDoc(deletedMessagesRef);
+        
+        let newDeletedConversations = [];
+        
+        if (deletedMessagesDoc.exists()) {
+          const existingDeleted = deletedMessagesDoc.data().deletedConversations || [];
+          if (!existingDeleted.includes(proId)) {
+            newDeletedConversations = [...existingDeleted, proId];
+            await updateDoc(deletedMessagesRef, {
+              deletedConversations: newDeletedConversations,
+              updatedAt: serverTimestamp()
+            });
+          }
+        } else {
+          newDeletedConversations = [proId];
+          await setDoc(deletedMessagesRef, {
+            deletedConversations: newDeletedConversations,
+            userId: currentUser.uid,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+  
+        setDeletedConversations(newDeletedConversations);
+        
+        setMessages(prevMessages => 
+          prevMessages.filter(msg => {
+            const autreUtilisateur = msg.senderId === currentUser.uid ? msg.receiverId : msg.senderId;
+            return autreUtilisateur !== proId;
+          })
+        );
 
-    // Sort messages in each group
-    Object.values(groups).forEach(group => {
-      if (group.messages.length > 0) {
-        group.messages.sort(sortMessages);
-        group.lastMessage = group.messages[0];
+        await logActivity(
+          ActivityTypes.MESSAGE,
+          'Conversation supprimée',
+          `Conversation avec ${users[proId]?.displayName || 'un utilisateur'} supprimée`,
+          currentUser.uid
+        );
+  
+        if (selectedMessage) {
+          const autreUtilisateur = selectedMessage.senderId === currentUser.uid 
+            ? selectedMessage.receiverId 
+            : selectedMessage.senderId;
+          if (autreUtilisateur === proId) {
+            setSelectedMessage(null);
+          }
+        }
+      } catch (error) {
+        handleError(error, 'DELETE');
       }
-    });
+    };
 
-    // Ne retourner que les groupes qui ont des messages visibles
-    return Object.fromEntries(
-      Object.entries(groups).filter(([_, group]) => group.messages.length > 0)
-    );
-  };
-
-  const getMessageDate = (message) => {
-    if (!message?.timestamp) return new Date(0);
-    
-    if (message.timestamp.toDate && typeof message.timestamp.toDate === 'function') {
-      return message.timestamp.toDate();
-    }
-    
-    return new Date(message.timestamp);
-  };
-
-  const sortMessages = (a, b) => {
-    const dateA = getMessageDate(a);
-    const dateB = getMessageDate(b);
-    return dateA - dateB;
-  };
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return '';
-    
-    // Handle Firestore Timestamp
-    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-      return timestamp.toDate().toLocaleString();
-    }
-    
-    // Handle regular Date object or timestamp number
-    return new Date(timestamp).toLocaleString();
-  };
-
+  // Composants de rendu
   const MessageStatus = ({ status }) => {
-    const getStatusStyle = (status) => {
-      switch (status) {
-        case 'approved':
-          return 'status-badge approved';
-        case 'pending':
-          return 'status-badge pending';
-        case 'rejected':
-          return 'status-badge rejected';
-        case 'en_attente_validation':
-          return 'status-badge pending';
-        default:
-          return 'status-badge';
-      }
+    const statusConfig = {
+      approved: { class: 'approved', icon: '✓', text: 'Approuvé' },
+      pending: { class: 'pending', icon: '⌛', text: 'En attente' },
+      rejected: { class: 'rejected', icon: '✕', text: 'Rejeté' },
+      en_attente_validation: { class: 'pending', icon: '⌛', text: 'En attente' }
     };
 
-    const getStatusIcon = (status) => {
-      switch (status) {
-        case 'approved':
-          return '✓';
-        case 'pending':
-          return '⌛';
-        case 'rejected':
-          return '✕';
-        case 'en_attente_validation':
-          return '⌛';
-        default:
-          return '?';
-      }
-    };
+    const config = statusConfig[status] || { class: '', icon: '?', text: '' };
 
     return (
-      <span className={getStatusStyle(status)}>
-        {getStatusIcon(status)} {getMessageStatus(status)}
+      <span className={`status-badge ${config.class}`}>
+        {config.icon} {config.text}
       </span>
     );
   };
@@ -580,25 +529,23 @@ const approveMessage = async (messageId) => {
   const renderMessage = (message) => {
     const isOwnMessage = message.senderId === currentUser?.uid;
     const messageClass = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
-    const isPending = message.status === 'pending' || message.status === 'en_attente_validation';
-    const isRejected = message.status === 'rejected';
     const otherUserId = isOwnMessage ? message.receiverId : message.senderId;
     const otherUser = users[otherUserId];
 
     return (
       <div key={message.id} className={messageClass}>
         <div className="message-content">
-          {isRejected && (
+          {message.status === 'rejected' && (
             <div className="message-rejected">
               <div className="rejection-header">Message rejeté</div>
               <div className="rejection-reason">
-                Raison : {message.rejectionReason}
+                {message.rejectionReason || 'Aucune raison spécifiée'}
               </div>
             </div>
           )}
           {message.content}
           <MessageStatus status={message.status} />
-          {userRole === 'administrateur' && isPending && (
+          {userRole === 'administrateur' && message.status === 'pending' && (
             <div className="admin-actions">
               <button 
                 className="approve-message-btn"
@@ -615,7 +562,7 @@ const approveMessage = async (messageId) => {
             </div>
           )}
         </div>
-        {message.files && message.files.length > 0 && (
+        {message.files?.length > 0 && (
           <div className="message-files">
             {message.files.map((fileUrl, index) => (
               <img 
@@ -623,11 +570,8 @@ const approveMessage = async (messageId) => {
                 src={fileUrl} 
                 alt="Image partagée"
                 className="message-image"
-                onClick={() => handleImageClick(fileUrl)}
-                onError={(e) => {
-                  console.error("Erreur de chargement de l'image:", fileUrl);
-                  e.target.style.display = 'none';
-                }}
+                onClick={() => setSelectedImageUrl(fileUrl)}
+                onError={(e) => e.target.style.display = 'none'}
               />
             ))}
           </div>
@@ -644,50 +588,13 @@ const approveMessage = async (messageId) => {
     );
   };
 
-  const handleImageClick = (url) => {
-    setSelectedImageUrl(url);
-    setIsModalOpen(true);
-  };
+  if (!currentUser) return null;
+  if (loading) return <div className="loading">Chargement des messages...</div>;
 
-  const closeModal = () => {
-    setSelectedImageUrl(null);
-    setIsModalOpen(false);
-  };
+  const professionalGroups = messages && Array.isArray(messages) 
+    ? groupMessagesByProfessional(messages) 
+    : {};
 
-  const getMessageStatus = (status) => {
-    switch (status) {
-      case 'approved':
-        return 'Approuvé';
-      case 'rejected':
-        return 'Rejeté';
-      case 'pending':
-      case 'en_attente_validation':
-        return 'En attente';
-      default:
-        return '';
-    }
-  };
-
-
-  const handleDeleteClick = (proId, e) => {
-    e.stopPropagation();
-    if (window.confirm('Voulez-vous vraiment supprimer cette conversation ? Elle sera masquée de votre liste mais restera accessible à l\'autre utilisateur.')) {
-      handleDeleteConversation(proId);
-    }
-  };
-
-  if (!currentUser) {
-    return null;
-  }
-
-  if (loading) {
-    return <div className="loading">Chargement des messages...</div>;
-  }
-
-  //console.log('Current messages state:', messages); // Debug log
-  // Group messages only once during render
-  const professionalGroups = messages && Array.isArray(messages) ? groupMessagesByProfessional(messages) : {};
-  //console.log('Professional groups:', professionalGroups); // Debug log
 
   return (
     <div className="messages-container">
@@ -775,13 +682,23 @@ const approveMessage = async (messageId) => {
                   placeholder="Écrivez votre message..."
                   disabled={isSending}
                 />
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  disabled={isSending}
-                />
+                <div className="file-input-container">
+  <input
+    type="file"
+    id="file-upload"
+    multiple
+    accept="image/*"
+  />
+  <label htmlFor="file-upload">
+    Ajouter des images
+  </label>
+  {/* Optionnel : afficher les fichiers sélectionnés */}
+  {selectedFiles.length > 0 && (
+    <div className="selected-files">
+      {selectedFiles.length} fichier(s) sélectionné(s)
+    </div>
+  )}
+</div>
                 <button type="submit" disabled={isSending}>
                   {isSending ? 'Envoi...' : 'Envoyer'}
                 </button>

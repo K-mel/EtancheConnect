@@ -4,12 +4,20 @@ import { db } from '../../firebase-config';
 import { requestNotificationPermission, onMessageListener } from '../../services/notificationService';
 import { useAuth } from '../../contexts/AuthContext';
 import { eventBus, LOGOUT_EVENT } from '../../utils/eventBus';
+import { ERROR_MESSAGES } from '../../utils/constants';
 import './NotificationList.css';
 
 const NotificationList = () => {
   const [notifications, setNotifications] = useState([]);
   const { currentUser } = useAuth();
   const [currentUnsubscribe, setCurrentUnsubscribe] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleError = (message, error) => {
+    const errorMessage = ERROR_MESSAGES[error?.code] || message || 'Une erreur est survenue';
+    setError(errorMessage);
+    setTimeout(() => setError(''), 5000);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -31,15 +39,12 @@ const NotificationList = () => {
           return;
         }
 
-        // Récupérer le rôle de l'utilisateur
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists() && isMounted) {
           const userRole = userDoc.data().role;
-          // Demander la permission pour les notifications avec le rôle correct
           await requestNotificationPermission(currentUser.uid, userRole);
         }
 
-        // Écouter les notifications en temps réel
         const q = query(
           collection(db, 'notifications'),
           where('userId', '==', currentUser.uid),
@@ -55,22 +60,30 @@ const NotificationList = () => {
             setNotifications(newNotifications);
           }
         }, (error) => {
-          if (error.code !== 'permission-denied') {
-            console.error('Erreur lors de l\'écoute des notifications:', error);
+          if (error.code !== 'permission-denied' && isMounted) {
+            handleError('Erreur lors du chargement des notifications', error);
           }
         });
 
         setCurrentUnsubscribe(() => unsub);
 
-        // Écouter les notifications push
-        const messageListener = onMessageListener().then(payload => {
-          // Ajouter la nouvelle notification à la liste
-          setNotifications(prev => [payload, ...prev]);
-        });
+        const messageListener = onMessageListener()
+          .then(payload => {
+            if (isMounted) {
+              setNotifications(prev => [payload, ...prev]);
+            }
+          })
+          .catch(error => {
+            if (isMounted) {
+              handleError('Erreur lors de l\'écoute des notifications push', error);
+            }
+          });
 
         return () => unsub();
       } catch (error) {
-        console.error('Erreur lors de l\'initialisation des notifications:', error);
+        if (isMounted) {
+          handleError('Erreur lors de l\'initialisation des notifications', error);
+        }
       }
     };
 
@@ -85,7 +98,6 @@ const NotificationList = () => {
     };
   }, [currentUser]);
 
-  // Fonction pour marquer une notification comme lue
   const markAsRead = async (notificationId) => {
     try {
       const notificationRef = doc(db, 'notifications', notificationId);
@@ -93,11 +105,10 @@ const NotificationList = () => {
         read: true
       });
     } catch (error) {
-      console.error('Erreur lors du marquage de la notification comme lue:', error);
+      handleError('Erreur lors du marquage de la notification comme lue', error);
     }
   };
 
-  // Gérer le clic sur une notification
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
       await markAsRead(notification.id);
@@ -147,6 +158,7 @@ const NotificationList = () => {
   return (
     <div className="notifications-container">
       <h3>Notifications</h3>
+      {error && <div className="notification-error">{error}</div>}
       <div className="notifications-list">
         {notifications.length === 0 ? (
           <p>Aucune notification</p>

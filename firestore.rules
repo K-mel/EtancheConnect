@@ -162,27 +162,35 @@ service cloud.firestore {
       // 1. L'utilisateur est authentifié ET
       // 2. Soit c'est sa propre notification OU c'est un admin
       allow read: if isAuthenticated() && (
-        (resource != null && resource.data.userId == request.auth.uid) ||
+        resource.data.userId == request.auth.uid ||
         isAdmin()
       );
-
-      // Permettre la création à tout utilisateur authentifié
-      allow create: if isAuthenticated();
-
-      // Permettre la mise à jour si :
+      
+      // Permettre l'écriture si :
       // 1. L'utilisateur est authentifié ET
       // 2. Soit c'est sa propre notification OU c'est un admin
-      allow update: if isAuthenticated() && (
-        (resource != null && resource.data.userId == request.auth.uid) ||
+      allow write: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
         isAdmin()
       );
+    }
 
-      // Permettre la suppression si :
+    // Règles pour la collection activites
+    match /activites/{activiteId} {
+      // Permettre la lecture si :
       // 1. L'utilisateur est authentifié ET
-      // 2. Soit c'est sa propre notification OU c'est un admin
-      allow delete: if isAuthenticated() && (
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        isAdmin()
+      // 2. Soit c'est un admin OU l'activité est liée à l'utilisateur
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      
+      // Permettre l'écriture si :
+      // 1. L'utilisateur est authentifié ET
+      // 2. Soit c'est un admin OU l'activité est créée par l'utilisateur
+      allow write: if isAuthenticated() && (
+        isAdmin() ||
+        request.resource.data.userId == request.auth.uid
       );
     }
 

@@ -693,3 +693,119 @@
     font-size: 0.85rem;
   }
 }
+
+/* Style pour le conteneur de la zone de message */
+.message-input {
+  position: sticky;
+  bottom: 0;
+  background-color: #fff;
+  padding: 1rem;
+  border-top: 1px solid #e2e8f0;
+  z-index: 10;
+  margin-top: auto;
+}
+
+/* Style amélioré pour le textarea de messages */
+.message-input textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #1e293b;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  resize: vertical;
+  transition: all 0.2s ease-in-out;
+  font-family: inherit;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.message-input textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.message-input textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.message-input textarea:hover {
+  border-color: #94a3b8;
+}
+
+.message-input textarea:disabled {
+  background-color: #f1f5f9;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Style pour le conteneur des messages */
+.messages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+/* Style pour le conteneur du bouton de fichier */
+.file-input-container {
+  position: relative;
+  display: inline-block;
+  margin: 1rem 0;
+}
+
+/* Cache l'input file par défaut */
+.file-input-container input[type="file"] {
+  opacity: 0;
+  width: 0.1px;
+  height: 0.1px;
+  position: absolute;
+}
+
+/* Style pour le label personnalisé qui remplace le bouton par défaut */
+.file-input-container label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Icône pour le bouton (vous pouvez utiliser une icône de votre choix) */
+.file-input-container label::before {
+  content: "📎";
+  font-size: 1.2rem;
+}
+
+/* Effet hover */
+.file-input-container label:hover {
+  background-color: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+/* Effet focus */
+.file-input-container input[type="file"]:focus + label {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Style pour afficher les fichiers sélectionnés */
+.selected-files {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}

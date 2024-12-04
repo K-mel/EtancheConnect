@@ -1,29 +1,65 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc } from "firebase/firestore";
+import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { ERROR_MESSAGES } from '../utils/constants';
 
 const messaging = getMessaging();
 
 // Demander la permission pour les notifications
+export const checkNotificationPermission = async () => {
+  try {
+    if (!('Notification' in window)) {
+      throw new Error('Ce navigateur ne supporte pas les notifications desktop');
+    }
+
+    const permission = await Notification.requestPermission();
+    
+    if (permission === 'denied') {
+      throw new Error('NOTIFICATIONS_BLOCKED');
+    }
+    
+    if (permission === 'default') {
+      throw new Error('NOTIFICATIONS_DISMISSED');
+    }
+
+    return permission === 'granted';
+  } catch (error) {
+    if (error.message === 'NOTIFICATIONS_BLOCKED') {
+      throw new Error('Les notifications sont bloquées. Veuillez les activer dans les paramètres de votre navigateur.');
+    }
+    if (error.message === 'NOTIFICATIONS_DISMISSED') {
+      throw new Error('Vous avez ignoré la demande de notifications. Veuillez rafraîchir la page pour réessayer.');
+    }
+    throw error;
+  }
+};
+
 export const requestNotificationPermission = async (userId, userRole) => {
   try {
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      const token = await getToken(messaging, {
-        vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY
-      });
-      
-      // Sauvegarder le token dans Firestore
-      await setDoc(doc(db, "userTokens", userId), {
-        token,
-        userRole,
-        updatedAt: serverTimestamp()
-      });
-      
-      return token;
+    const permission = await checkNotificationPermission();
+    if (!permission) {
+      return null;
     }
+
+    const token = await getToken(messaging, {
+      vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY
+    });
+    
+    if (!token) {
+      throw new Error('Impossible d\'obtenir le token de notification');
+    }
+
+    // Sauvegarder le token dans Firestore
+    await setDoc(doc(db, "userTokens", userId), {
+      token,
+      userRole,
+      updatedAt: serverTimestamp()
+    });
+    
+    return token;
   } catch (error) {
     console.error("Erreur lors de la demande de permission:", error);
+    throw error;
   }
 };
 
@@ -38,6 +74,7 @@ export const createNotification = async (userId, notification) => {
     });
   } catch (error) {
     console.error("Erreur lors de la création de la notification:", error);
+    throw error;
   }
 };
 
@@ -53,33 +90,16 @@ export const onMessageListener = () => {
 // Fonctions spécifiques pour chaque type de notification
 export const sendQuestionNotification = async (particulierId, professionalId, questionData) => {
   const notification = {
-    type: "NEW_QUESTION",
-    title: "Nouvelle question",
-    message: "Vous avez reçu une nouvelle question",
-    data: questionData,
-    fromUserId: professionalId
+    type: 'QUESTION',
+    title: 'Nouvelle question',
+    body: `Un particulier vous a posé une question : ${questionData.question}`,
+    data: {
+      particulierId,
+      questionId: questionData.id
+    },
+    recipientId: professionalId
   };
-  await createNotification(particulierId, notification);
-};
 
-export const sendQuoteNotification = async (particulierId, professionalId, quoteData) => {
-  const notification = {
-    type: "NEW_QUOTE",
-    title: "Nouveau devis",
-    message: "Vous avez reçu un nouveau devis",
-    data: quoteData,
-    fromUserId: professionalId
-  };
-  await createNotification(particulierId, notification);
-};
-
-export const sendQuoteRequestNotification = async (professionalId, requestData) => {
-  const notification = {
-    type: "NEW_QUOTE_REQUEST",
-    title: "Nouvelle demande de devis",
-    message: "Une nouvelle demande de devis est disponible",
-    data: requestData
-  };
   await createNotification(professionalId, notification);
 };
 
