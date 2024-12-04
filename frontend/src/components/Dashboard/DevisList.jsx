@@ -13,6 +13,7 @@ const DevisList = ({ userType }) => {
   const [error, setError] = useState('');
   const [selectedDevis, setSelectedDevis] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editForm, setEditForm] = useState({
     description: '',
     surface: '',
@@ -541,70 +542,82 @@ const DevisList = ({ userType }) => {
     }
   }, [currentUser, userType, fetchDevis]);
 
+  // Fonction pour filtrer les devis en fonction de la recherche
+  const filteredDevis = devis.filter(devis => {
+    if (!searchQuery) return true;
+    const devisNumber = formatDevisNumber(devis.id).toLowerCase();
+    return devisNumber.includes(searchQuery.toLowerCase());
+  });
+
   return (
-    <div className="devis-list">
-      <h2>
-        {userType === 'particulier' ? 'Mes devis' : 
-         userType === 'professionnel' ? 'Devis disponibles' : 
-         'Validation des devis'}
-      </h2>
-      
-      {error && <div className="error-message">{error}</div>}
+    <div className="devis-list-container">
+      {userType === 'administrateur' && (
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="Rechercher par numéro de demande..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="search-input"
+          />
+        </div>
+      )}
       
       {loading ? (
         <div className="loading">Chargement des devis...</div>
+      ) : error ? (
+        <div className="error">{error}</div>
       ) : devis.length === 0 ? (
-        <div className="no-devis">
-          {userType === 'particulier' 
-            ? "Vous n'avez pas encore de devis. Une fois votre demande traitée, les devis apparaîtront ici."
-            : userType === 'professionnel'
-            ? "Aucun devis n'est disponible pour le moment. Les devis apparaîtront ici une fois validés par l'administrateur."
-            : "Aucun devis en attente de validation."}
+        <div className="devis-empty">
+          <div className="devis-empty-icon">📄</div>
+          <p>Aucun devis disponible</p>
         </div>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>N° Demande</th>
-              <th>Date</th>
-              <th>Type de projet</th>
-              <th>Surface</th>
-              <th>Ville</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {devis.map((devis) => (
-              <tr key={devis.id} className={devis.status}>
-                <td>{formatDevisNumber(devis.id)}</td>
-                <td>{devis.createdAt}</td>
-                <td>{devis.typeProjet}</td>
-                <td>{devis.surface} m²</td>
-                <td>{devis.ville}</td>
-                <td>
-                  <span className={`status ${devis.status}`}>
-                    {getStatusLabel(devis.status)}
-                  </span>
-                </td>
-                <td className="actions">
-                  {renderActions(devis)}
-                  {userType === 'professionnel' && !devisWithMessages.has(devis.id) && (
-                    <button
-                      onClick={() => {
-                        setSelectedDevis(devis);
-                        setIsQuestionModalOpen(true);
-                      }}
-                      className="question-btn"
-                    >
-                      Question
-                    </button>
-                  )}
-                </td>
+        <div className="devis-list">
+          <table>
+            <thead>
+              <tr>
+                <th>N° Demande</th>
+                <th>Date</th>
+                <th>Type de projet</th>
+                <th>Surface</th>
+                <th>Ville</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredDevis.map((devis) => (
+                <tr key={devis.id} className={devis.status}>
+                  <td>{formatDevisNumber(devis.id)}</td>
+                  <td>{devis.createdAt}</td>
+                  <td>{devis.typeProjet}</td>
+                  <td>{devis.surface} m²</td>
+                  <td>{devis.ville}</td>
+                  <td>
+                    <span className={`status ${devis.status}`}>
+                      {getStatusLabel(devis.status)}
+                    </span>
+                  </td>
+                  <td className="actions">
+                    {renderActions(devis)}
+                    {userType === 'professionnel' && !devisWithMessages.has(devis.id) && (
+                      <button
+                        onClick={() => {
+                          setSelectedDevis(devis);
+                          setIsQuestionModalOpen(true);
+                        }}
+                        className="question-btn"
+                      >
+                        Question
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {renderModalContent()}
       {renderFullscreenImage()}
