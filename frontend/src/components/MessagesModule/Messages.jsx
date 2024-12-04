@@ -88,53 +88,72 @@ const Messages = ({ showDeleted }) => {
       return groups;
     }
     
+    // Première passe : grouper par numéro de demande
+    const demandeGroups = {};
     messages.forEach(message => {
-      const demandeOrDevisNumber = generateDemandeNumber(message);
-      const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
-      const otherUser = users[otherUserId];
-      
-      const conversationKey = `${otherUserId}_${demandeOrDevisNumber}`;
-      
-      if (otherUser) {
-        const groupKey = `${otherUserId}_${demandeOrDevisNumber}`;
-        
-        if (!groups[groupKey]) {
-          groups[groupKey] = {
-            professional: {
-              id: otherUserId,
-              displayName: otherUser.displayName || otherUser.email,
-              role: otherUser.role,
-              companyName: otherUser.companyName
-            },
-            messages: [],
-            demandeOrDevisNumber: demandeOrDevisNumber,
-            lastMessage: null,
-            unreadCount: 0,
-            isDeleted: deletedConversations.includes(conversationKey)
-          };
-        }
-        
-        groups[groupKey].messages.push(message);
-        
-        // Mettre à jour le dernier message
-        if (!groups[groupKey].lastMessage || 
-            getMessageDate(message) > getMessageDate(groups[groupKey].lastMessage)) {
-          groups[groupKey].lastMessage = message;
-        }
-        
-        // Compter les messages non lus
-        if (!message.read && message.receiverId === currentUser.uid) {
-          groups[groupKey].unreadCount++;
-        }
+      const demandeNumber = generateDemandeNumber(message);
+      if (!demandeGroups[demandeNumber]) {
+        demandeGroups[demandeNumber] = [];
       }
+      demandeGroups[demandeNumber].push(message);
     });
 
-    // Trier les groupes par date du dernier message
+    // Deuxième passe : pour chaque demande, grouper par professionnel
+    Object.entries(demandeGroups).forEach(([demandeNumber, demandeMessages]) => {
+      demandeMessages.forEach(message => {
+        const otherUserId = message.senderId === currentUser.uid ? message.receiverId : message.senderId;
+        const otherUser = users[otherUserId];
+        
+        if (otherUser) {
+          const groupKey = `${demandeNumber}_${otherUserId}`;
+          
+          if (!groups[groupKey]) {
+            groups[groupKey] = {
+              professional: {
+                id: otherUserId,
+                displayName: otherUser.displayName || otherUser.email,
+                role: otherUser.role,
+                companyName: otherUser.companyName
+              },
+              messages: [],
+              demandeNumber: demandeNumber,
+              lastMessage: null,
+              unreadCount: 0,
+              isDeleted: deletedConversations.includes(groupKey)
+            };
+          }
+          
+          groups[groupKey].messages.push(message);
+          
+          // Mettre à jour le dernier message
+          if (!groups[groupKey].lastMessage || 
+              getMessageDate(message) > getMessageDate(groups[groupKey].lastMessage)) {
+            groups[groupKey].lastMessage = message;
+          }
+          
+          // Compter les messages non lus
+          if (!message.read && message.receiverId === currentUser.uid) {
+            groups[groupKey].unreadCount++;
+          }
+        }
+      });
+    });
+
+    // Trier les groupes d'abord par numéro de demande, puis par date du dernier message
     return Object.fromEntries(
-      Object.entries(groups).sort(([,a], [,b]) => {
-        const dateA = getMessageDate(a.lastMessage);
-        const dateB = getMessageDate(b.lastMessage);
-        return dateB - dateA;
+      Object.entries(groups).sort(([keyA, a], [keyB, b]) => {
+        const [demandeA] = keyA.split('_');
+        const [demandeB] = keyB.split('_');
+        
+        // Si même demande, trier par date du dernier message
+        if (demandeA === demandeB) {
+          const dateA = getMessageDate(a.lastMessage);
+          const dateB = getMessageDate(b.lastMessage);
+          return dateB - dateA;
+        }
+        
+        // Sinon, trier par numéro de demande (plus récent en premier)
+        return demandeB.localeCompare(demandeA);
       })
     );
   };
@@ -227,11 +246,25 @@ const Messages = ({ showDeleted }) => {
   const fetchMessages = async () => {
     try {
       setLoading(true);
-      // Récupérer les messages où l'utilisateur est impliqué
-      const messagesQuery = query(
-        collection(db, 'messages'),
-        where('participants', 'array-contains', currentUser.uid)
-      );
+      
+      // Construire la requête en fonction du rôle de l'utilisateur
+      let messagesQuery;
+      if (userRole === 'professionnel') {
+        // Pour un professionnel, on ne récupère que les messages où il est impliqué
+        messagesQuery = query(
+          collection(db, 'messages'),
+          where('participants', 'array-contains', currentUser.uid)
+        );
+      } else if (userRole === 'administrateur') {
+        // Pour un administrateur, on récupère tous les messages
+        messagesQuery = query(collection(db, 'messages'));
+      } else {
+        // Pour un particulier, on récupère ses messages
+        messagesQuery = query(
+          collection(db, 'messages'),
+          where('participants', 'array-contains', currentUser.uid)
+        );
+      }
 
       const [messagesSnapshot, usersSnapshot] = await Promise.all([
         getDocs(messagesQuery),
@@ -245,16 +278,29 @@ const Messages = ({ showDeleted }) => {
       });
       setUsers(usersMap);
 
-      // Traiter les messages et les trier par date
+      // Traiter les messages
       const messagesData = messagesSnapshot.docs
         .map(doc => ({
           id: doc.id,
           ...doc.data()
         }))
+        .filter(message => {
+          if (userRole === 'professionnel') {
+            // Un professionnel ne voit que les messages où il est impliqué
+            return message.participants.includes(currentUser.uid);
+          } else if (userRole === 'administrateur') {
+            // Un administrateur voit tous les messages
+            return true;
+          } else {
+            // Un particulier voit ses messages et les messages approuvés
+            return message.participants.includes(currentUser.uid) || 
+                   (message.status === 'approved' && message.receiverId === currentUser.uid);
+          }
+        })
         .sort((a, b) => {
           const timeA = a.timestamp?.seconds || 0;
           const timeB = b.timestamp?.seconds || 0;
-          return timeB - timeA; // Tri décroissant (plus récent en premier)
+          return timeB - timeA;
         });
 
       setMessages(messagesData);
@@ -628,7 +674,7 @@ const Messages = ({ showDeleted }) => {
     return Object.fromEntries(
       Object.entries(groups).filter(([groupKey, group]) => {
         const isDeleted = deletedConversations.includes(
-          `${group.professional.id}_${group.demandeOrDevisNumber}`
+          `${group.professional.id}_${group.demandeNumber}`
         );
         // Si showDeletedMessages est true, on ne montre que les conversations supprimées
         // Sinon, on ne montre que les conversations non supprimées
@@ -657,7 +703,7 @@ const Messages = ({ showDeleted }) => {
 
   const RestoreButton = ({ conversation }) => {
     const isDeleted = deletedConversations.includes(
-      `${conversation.professional.id}_${conversation.demandeOrDevisNumber}`
+      `${conversation.professional.id}_${conversation.demandeNumber}`
     );
 
     if (!isDeleted) return null;
@@ -668,7 +714,7 @@ const Messages = ({ showDeleted }) => {
         onClick={(e) => {
           e.stopPropagation();
           if (window.confirm('Voulez-vous restaurer cette conversation ?')) {
-            handleRestoreConversation(conversation.professional.id, conversation.demandeOrDevisNumber);
+            handleRestoreConversation(conversation.professional.id, conversation.demandeNumber);
           }
         }}
       >
@@ -749,6 +795,112 @@ const Messages = ({ showDeleted }) => {
     );
   };
 
+  // Fonction pour charger une conversation complète
+  const loadConversation = (message) => {
+    if (!message) return;
+    
+    const otherUserId = message.senderId === currentUser.uid 
+      ? message.receiverId 
+      : message.senderId;
+    const demandeNumber = generateDemandeNumber(message);
+    const groupKey = `${demandeNumber}_${otherUserId}`;
+    const group = filteredGroups[groupKey];
+    
+    if (group) {
+      setSelectedMessage({
+        ...message,
+        conversationGroup: group
+      });
+    }
+  };
+
+  // Fonction pour rendre les conversations
+  const renderGroupedConversations = () => {
+    // Regrouper les conversations par numéro de demande
+    const groupedByDemande = Object.entries(filteredGroups).reduce((acc, [groupKey, group]) => {
+      const demandeNumber = group.demandeNumber;
+      if (!acc[demandeNumber]) {
+        acc[demandeNumber] = [];
+      }
+      acc[demandeNumber].push({ groupKey, group });
+      return acc;
+    }, {});
+
+    // Trier les groupes par numéro de demande (plus récent en premier)
+    return Object.entries(groupedByDemande)
+      .sort(([demandeA], [demandeB]) => demandeB.localeCompare(demandeA))
+      .map(([demandeNumber, conversations]) => (
+        <div key={demandeNumber} className="demande-group">
+          <div className="demande-header">
+            {demandeNumber !== 'Sans numéro' ? (
+              <h3>
+                {demandeNumber.startsWith('DEM-') ? (
+                  `Demande N° ${demandeNumber.substring(4)}`
+                ) : (
+                  `Devis N° ${demandeNumber.substring(4)}`
+                )}
+              </h3>
+            ) : (
+              <h3>Messages sans référence</h3>
+            )}
+          </div>
+          <div className="demande-conversations">
+            {conversations
+              .sort((a, b) => getMessageDate(b.group.lastMessage) - getMessageDate(a.group.lastMessage))
+              .map(({ groupKey, group }) => (
+                <div
+                  key={groupKey}
+                  className={`professional-item ${selectedMessage?.conversationGroup === group ? 'selected' : ''}`}
+                  onClick={() => loadConversation(group.lastMessage)}
+                >
+                  <div className="professional-info">
+                    <h4>{group.professional.displayName || group.professional.companyName}</h4>
+                    {group.lastMessage && (
+                      <p className="last-message">
+                        {group.lastMessage.content.substring(0, 50)}
+                        {group.lastMessage.content.length > 50 ? '...' : ''}
+                      </p>
+                    )}
+                    <p className="message-time">
+                      {formatTimestamp(group.lastMessage?.timestamp)}
+                    </p>
+                  </div>
+                  <div className="conversation-meta">
+                    {group.unreadCount > 0 && (
+                      <span className="unread-count">{group.unreadCount}</span>
+                    )}
+                    <div className="conversation-actions">
+                      <RestoreButton conversation={group} />
+                      {!showDeletedMessages && (
+                        <button
+                          className="delete-conversation-btn"
+                          onClick={(e) => handleDeleteClick(
+                            group.professional.id,
+                            group.demandeNumber,
+                            e
+                          )}
+                        >
+                          <FaTrash />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ));
+  };
+
+  // Fonction pour rendre les messages d'une conversation
+  const renderConversationMessages = () => {
+    if (!selectedMessage?.conversationGroup?.messages) return null;
+    
+    return selectedMessage.conversationGroup.messages
+      .sort((a, b) => getMessageDate(a) - getMessageDate(b))
+      .map(message => renderMessage(message));
+  };
+
   // Fonction pour filtrer les messages en fonction de showDeletedMessages
   const toggleDeletedMessages = () => {
     setShowDeletedMessages(prev => !prev);
@@ -780,141 +932,45 @@ const Messages = ({ showDeleted }) => {
         <div className="professionals-content">
           {Object.entries(filteredGroups).length === 0 ? (
             <div className="no-conversations">
-              <p>{showDeletedMessages ? 'Aucun message supprimé' : 'Aucune conversation'}</p>
+              {showDeletedMessages ? (
+                "Aucune conversation supprimée"
+              ) : (
+                "Aucune conversation"
+              )}
             </div>
           ) : (
-            Object.entries(filteredGroups).map(([groupKey, group]) => {
-              const isDeleted = deletedConversations.includes(
-                `${group.professional.id}_${group.demandeOrDevisNumber}`
-              );
-
-              return (
-                <div
-                  key={groupKey}
-                  className={`professional-item ${isDeleted ? 'deleted' : ''}`}
-                  onClick={() => !isDeleted && setSelectedMessage(group.lastMessage)}
-                >
-                  <div className="professional-info">
-                    <h3>{group.professional.displayName || group.professional.companyName}</h3>
-                    {group.demandeOrDevisNumber !== 'Sans numéro' && (
-                      <p className="devis-number">
-                        {group.demandeOrDevisNumber.startsWith('DEM-') ? (
-                          `Demande N° ${group.demandeOrDevisNumber.substring(4)}`
-                        ) : (
-                          `Devis N° ${group.demandeOrDevisNumber.substring(4)}`
-                        )}
-                      </p>
-                    )}
-                    <p className="last-message">
-                      {group.lastMessage?.content?.substring(0, 50)}
-                      {group.lastMessage?.content?.length > 50 ? '...' : ''}
-                    </p>
-                    <p className="message-time">
-                      {formatTimestamp(group.lastMessage?.timestamp)}
-                    </p>
-                  </div>
-                  <div className="professional-actions">
-                    {isDeleted ? (
-                      <button
-                        className="restore-conversation-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('Voulez-vous restaurer cette conversation ?')) {
-                            handleRestoreConversation(
-                              group.professional.id,
-                              group.demandeOrDevisNumber
-                            );
-                          }
-                        }}
-                      >
-                        <FaTrashRestore /> Restaurer
-                      </button>
-                    ) : (
-                      <button
-                        className="delete-conversation-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteClick(
-                            group.professional.id,
-                            group.demandeOrDevisNumber,
-                            e
-                          );
-                        }}
-                      >
-                        <FaTrash />
-                      </button>
-                    )}
-                    {group.unreadCount > 0 && !isDeleted && (
-                      <div className="unread-badge">{group.unreadCount}</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
+            renderGroupedConversations()
           )}
         </div>
       </div>
       {selectedMessage ? (
         <div className="conversation-view">
           <div className="conversation-header">
-            <h2>
-              {users[selectedMessage.senderId === currentUser.uid 
-                ? selectedMessage.receiverId 
-                : selectedMessage.senderId]?.displayName || 'Conversation'}
-            </h2>
-            {selectedMessage.devisNumber && (
-              <p className="devis-number">
-                {selectedMessage.devisNumber.startsWith('DEM-') ? (
-                  `Demande N° ${selectedMessage.devisNumber.substring(4)}`
-                ) : (
-                  `Devis N° ${selectedMessage.devisNumber.substring(4)}`
-                )}
-              </p>
-            )}
-          </div>
-          <div className="messages-list">
             {(() => {
-              if (!selectedMessage) return null;
-              
               const otherUserId = selectedMessage.senderId === currentUser.uid 
                 ? selectedMessage.receiverId 
                 : selectedMessage.senderId;
-              const demandeOrDevisNumber = generateDemandeNumber(selectedMessage);
-              const groupKey = `${otherUserId}_${demandeOrDevisNumber}`;
-              const groupMessages = professionalGroups[groupKey]?.messages || [];
+              const otherUser = users[otherUserId];
+              const demandeNumber = generateDemandeNumber(selectedMessage);
               
-              return filterMessages(groupMessages)
-                .sort((a, b) => getMessageDate(b) - getMessageDate(a))
-                .map(message => (
-                  <div 
-                    key={message.id}
-                    className={`message ${message.senderId === currentUser.uid ? 'sent' : 'received'}`}
-                  >
-                    <div className="message-content">
-                      <p>{message.content}</p>
-                      {message.files && message.files.length > 0 && (
-                        <div className="message-images">
-                          {message.files.map((file, index) => (
-                            <img
-                              key={index}
-                              src={file.url}
-                              alt="Image jointe"
-                              onClick={() => {
-                                setSelectedImageUrl(file.url);
-                                setIsModalOpen(true);
-                              }}
-                            />
-                          ))}
-                        </div>
+              return (
+                <>
+                  <h2>{otherUser?.displayName || otherUser?.companyName || 'Conversation'}</h2>
+                  {demandeNumber !== 'Sans numéro' && (
+                    <p className="devis-number">
+                      {demandeNumber.startsWith('DEM-') ? (
+                        `Demande N° ${demandeNumber.substring(4)}`
+                      ) : (
+                        `Devis N° ${demandeNumber.substring(4)}`
                       )}
-                      <div className="message-meta">
-                        <span className="message-time">{formatTimestamp(message.timestamp)}</span>
-                        <MessageStatus status={message.status} />
-                      </div>
-                    </div>
-                  </div>
-                ));
+                    </p>
+                  )}
+                </>
+              );
             })()}
+          </div>
+          <div className="messages-list">
+            {renderConversationMessages()}
           </div>
           <div className="message-input">
             <form onSubmit={handleSendMessage}>
@@ -925,10 +981,42 @@ const Messages = ({ showDeleted }) => {
                   placeholder="Écrivez votre message..."
                   disabled={isSending}
                 />
-                <button type="submit" disabled={isSending || !newMessage.trim()}>
-                  {isSending ? 'Envoi...' : 'Envoyer'}
-                </button>
+                <div className="message-input-actions">
+                  <input
+                    type="file"
+                    id="file-input"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="file-input" className="file-input-label">
+                    <span>Ajouter des images</span>
+                  </label>
+                  <button type="submit" disabled={isSending || !newMessage.trim()}>
+                    {isSending ? 'Envoi...' : 'Envoyer'}
+                  </button>
+                </div>
               </div>
+              {selectedFiles.length > 0 && (
+                <div className="selected-files">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="selected-file">
+                      <span>{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newFiles = [...selectedFiles];
+                          newFiles.splice(index, 1);
+                          setSelectedFiles(newFiles);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               {messageError && <div className="error-message">{messageError}</div>}
             </form>
           </div>
