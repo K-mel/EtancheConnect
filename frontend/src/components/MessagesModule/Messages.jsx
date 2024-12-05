@@ -536,6 +536,21 @@ const Messages = ({ showDeleted }) => {
     }
   };
 
+  const markMessagesAsRead = async (messages) => {
+    try {
+      const batch = writeBatch(db);
+      messages.forEach(message => {
+        if (!message.read && message.receiverId === currentUser.uid) {
+          const messageRef = doc(db, 'messages', message.id);
+          batch.update(messageRef, { read: true });
+        }
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error('Erreur lors du marquage des messages comme lus:', error);
+    }
+  };
+
   // Gestion de la restauration des messages
   const handleRestoreConversation = async (proId, devisNumber) => {
     try {
@@ -811,6 +826,7 @@ const Messages = ({ showDeleted }) => {
         ...message,
         conversationGroup: group
       });
+      markMessagesAsRead(group.messages);
     }
   };
 
@@ -952,7 +968,7 @@ const Messages = ({ showDeleted }) => {
                 : selectedMessage.senderId;
               const otherUser = users[otherUserId];
               const demandeNumber = generateDemandeNumber(selectedMessage);
-              
+　　 　 　 　
               return (
                 <>
                   <h2>{otherUser?.displayName || otherUser?.companyName || 'Conversation'}</h2>

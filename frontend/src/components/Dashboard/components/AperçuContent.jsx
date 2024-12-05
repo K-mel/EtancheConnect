@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import {
-  FaEnvelope,
-  FaProjectDiagram,
-  FaUser,
-  FaFileInvoiceDollar,
-  FaChartLine,
-  FaClock,
-  FaBell,
-  FaCheckCircle,
-  FaUsers
-} from 'react-icons/fa';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
+import { formatDistance } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { 
+  FaUsers, 
+  FaBriefcase, 
+  FaFileInvoiceDollar, 
+  FaClock, 
+  FaEnvelope,
+  FaCheckCircle,
+  FaProjectDiagram,
+  FaUser,
+  FaChartLine,
+  FaBell 
+} from 'react-icons/fa';
 import '../styles/apercu.css';
 import RecentActivityList from './RecentActivityList';
 
@@ -24,7 +27,10 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     utilisateurs: 0,
     taches: 0,
     devisEnAttente: 0,
-    devisEnAttenteSignature: 0
+    devisEnAttenteSignature: 0,
+    devisRecus: 0,
+    devisEnCours: 0,
+    devisSignes: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +53,10 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           utilisateurs: 0,
           taches: 0,
           devisEnAttente: 0,
-          devisEnAttenteSignature: 0
+          devisEnAttenteSignature: 0,
+          devisRecus: 0,
+          devisEnCours: 0,
+          devisSignes: 0
         };
 
         // Pour les administrateurs, récupérer toutes les données
@@ -112,18 +121,52 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           setRecentActivity(activities);
         } else {
           // Pour les autres utilisateurs, récupérer leurs données spécifiques
-          let devisQuery = query(
-            collection(db, 'devis'),
-            where(userRole === 'professional' ? 'professionnelId' : 'userId', '==', user.uid),
-            orderBy('createdAt', 'desc')
-          );
-          const devisSnapshot = await getDocs(devisQuery);
-          statsData.devis = devisSnapshot.size;
+          let devisQuery;
+          if (userRole === 'professionnel') {
+            // Pour les professionnels
+            const devisRef = collection(db, 'devis');
+            const devisSnapshot = await getDocs(devisRef);
+            
+            // Nombre total de devis
+            statsData.devisRecus = devisSnapshot.size;
+            
+            // Compter les devis par status
+            let devisEnCours = 0;
+            let devisSignes = 0;
+            
+            devisSnapshot.forEach((doc) => {
+              const devis = doc.data();
+              if (['en_discussion', 'en_attente_signature'].includes(devis.status)) {
+                devisEnCours++;
+              } else if (devis.status === 'signe') {
+                devisSignes++;
+              }
+            });
+
+            statsData.devisEnCours = devisEnCours;
+            statsData.devisSignes = devisSignes;
+          } else {
+            // Pour les particuliers
+            devisQuery = query(
+              collection(db, 'devis'),
+              where('userId', '==', user.uid)
+            );
+            const devisSnapshot = await getDocs(devisQuery);
+            
+            // Filtrer les devis non signés/refusés/annulés
+            const devisEnCours = devisSnapshot.docs.filter(doc => {
+              const data = doc.data();
+              return !data.deletedForUser && 
+                     !['signe', 'refuse', 'annule'].includes(data.status || 'en_attente');
+            });
+            
+            statsData.devis = devisEnCours.length;
+          }
 
           // Messages non lus
           const messagesNonLusQuery = query(
             collection(db, 'messages'),
-            where('participants', 'array-contains', user.uid),
+            where('receiverId', '==', user.uid),
             where('read', '==', false)
           );
           const messagesNonLusSnapshot = await getDocs(messagesNonLusQuery);
@@ -182,13 +225,16 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
 
   // Fonctions utilitaires
   const getActivityIcon = (type) => {
-    const icons = {
-      'devis': <FaFileInvoiceDollar />,
-      'message': <FaEnvelope />,
-      'projet': <FaProjectDiagram />,
-      'default': <FaClock />
-    };
-    return icons[type] || icons['default'];
+    switch (type) {
+      case 'devis':
+        return <FaFileInvoiceDollar />;
+      case 'message':
+        return <FaEnvelope />;
+      case 'projet':
+        return <FaBriefcase />;
+      default:
+        return <FaClock />;
+    }
   };
 
   const getActivityColor = (type) => {
@@ -251,6 +297,39 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
               }
             }, 100);
           }
+        }
+      ];
+    }
+
+    if (userRole === 'professionnel') {
+      return [
+        {
+          icon: <FaFileInvoiceDollar />,
+          value: stats.devisRecus,
+          label: 'Demande de devis reçu',
+          color: '#10b981',
+          onClick: () => handleTabChange('devis')
+        },
+        {
+          icon: <FaClock />,
+          value: stats.devisEnCours,
+          label: 'Devis en attente de validation',
+          color: '#3b82f6',
+          onClick: () => handleTabChange('devis')
+        },
+        {
+          icon: <FaCheckCircle />,
+          value: stats.devisSignes,
+          label: 'Devis signés',
+          color: '#059669',
+          onClick: () => handleTabChange('devis')
+        },
+        {
+          icon: <FaEnvelope />,
+          value: stats.messagesNonLus,
+          label: 'Messages non lus',
+          color: '#f59e0b',
+          onClick: () => handleTabChange('messages')
         }
       ];
     }

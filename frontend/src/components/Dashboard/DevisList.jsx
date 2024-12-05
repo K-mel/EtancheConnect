@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,6 +31,7 @@ const DevisList = ({ userType }) => {
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [questionContent, setQuestionContent] = useState('');
   const [devisWithMessages, setDevisWithMessages] = useState(new Set());
+  const [searchDevisNumber, setSearchDevisNumber] = useState('');
   const { currentUser } = useAuth();
 
   const setupMessagesListener = useCallback(() => {
@@ -130,20 +131,33 @@ const DevisList = ({ userType }) => {
   }, [userType, currentUser]);
 
   const getStatusLabel = (status) => {
-    switch (status) {
-      case 'en_attente':
-        return 'En attente de validation';
-      case 'valide':
-        return 'Validé';
-      case 'refuse':
-        return 'Refusé';
-      case 'devis_envoye':
-        return 'Devis envoyé';
-      case 'accepte':
-        return 'Accepté';
-      default:
-        return status;
-    }
+    const statusLabels = {
+      'en_attente': 'En attente',
+      'en_discussion': 'En discussion',
+      'en_attente_signature': 'En attente de signature',
+      'signe': 'Signé',
+      'refuse': 'Refusé',
+      'annule': 'Annulé',
+      'valide': 'Validé',
+      'devis_envoye': 'Devis envoyé',
+      'accepte': 'Accepté'
+    };
+    return statusLabels[status] || status;
+  };
+
+  const getStatusClass = (status) => {
+    const statusClasses = {
+      'en_attente': 'status-waiting',
+      'en_discussion': 'status-discussion',
+      'en_attente_signature': 'status-pending-signature',
+      'signe': 'status-signed',
+      'refuse': 'status-refused',
+      'annule': 'status-cancelled',
+      'valide': 'status-valid',
+      'devis_envoye': 'status-sent',
+      'accepte': 'status-accepted'
+    };
+    return `status ${statusClasses[status] || ''}`;
   };
 
   const handleValidateDevis = async (devisId) => {
@@ -493,7 +507,7 @@ const DevisList = ({ userType }) => {
               <p><strong>Adresse:</strong> {selectedDevis.address}</p>
               <p><strong>Ville:</strong> {selectedDevis.ville}</p>
               <p><strong>Code Postal:</strong> {selectedDevis.codePostal}</p>
-              <p><strong>Status:</strong> {getStatusLabel(selectedDevis.status)}</p>
+              <p><strong>Status:</strong> <span className={getStatusClass(selectedDevis.status)}>{getStatusLabel(selectedDevis.status)}</span></p>
               <p><strong>Description:</strong> {selectedDevis.description || 'Aucune description'}</p>
 
               {userType === 'particulier' && selectedDevis.status !== 'refuse' && (
@@ -501,7 +515,8 @@ const DevisList = ({ userType }) => {
                   Modifier le devis
                 </button>
               )}
-              
+　
+　
               {selectedDevis.photos && selectedDevis.photos.length > 0 && (
                 <div>
                   <h4>Photos du projet</h4>
@@ -542,27 +557,30 @@ const DevisList = ({ userType }) => {
     }
   }, [currentUser, userType, fetchDevis]);
 
-  // Fonction pour filtrer les devis en fonction de la recherche
-  const filteredDevis = devis.filter(devis => {
-    if (!searchQuery) return true;
-    const devisNumber = formatDevisNumber(devis.id).toLowerCase();
-    return devisNumber.includes(searchQuery.toLowerCase());
-  });
+  // Fonction pour filtrer les devis
+  const filteredDevis = useMemo(() => {
+    if (!searchDevisNumber || userType !== 'professionnel') return devis;
+    
+    return devis.filter(d => {
+      const devisNumber = formatDevisNumber(d.id);
+      return devisNumber.toLowerCase().includes(searchDevisNumber.toLowerCase().trim());
+    });
+  }, [devis, searchDevisNumber, userType]);
 
   return (
     <div className="devis-list-container">
-      {userType === 'administrateur' && (
-        <div className="search-container">
+      {userType === 'professionnel' && (
+        <div className="search-devis-container">
           <input
-            type="text"
-            placeholder="Rechercher par numéro de demande..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
+            type="search"
+            placeholder="Rechercher par numéro de devis (ex: DEV-001)"
+            value={searchDevisNumber}
+            onChange={(e) => setSearchDevisNumber(e.target.value)}
+            className="search-devis-input"
           />
         </div>
       )}
-      
+
       {loading ? (
         <div className="loading">Chargement des devis...</div>
       ) : error ? (
@@ -595,23 +613,12 @@ const DevisList = ({ userType }) => {
                   <td>{devis.surface} m²</td>
                   <td>{devis.ville}</td>
                   <td>
-                    <span className={`status ${devis.status}`}>
+                    <span className={getStatusClass(devis.status)}>
                       {getStatusLabel(devis.status)}
                     </span>
                   </td>
                   <td className="actions">
                     {renderActions(devis)}
-                    {userType === 'professionnel' && !devisWithMessages.has(devis.id) && (
-                      <button
-                        onClick={() => {
-                          setSelectedDevis(devis);
-                          setIsQuestionModalOpen(true);
-                        }}
-                        className="question-btn"
-                      >
-                        Question
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}

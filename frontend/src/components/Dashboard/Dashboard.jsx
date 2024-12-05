@@ -160,8 +160,8 @@ const Dashboard = () => {
             icon: <FaFileAlt />
           },
           {
-            id: 'projets',
-            label: 'Mes Projets',
+            id: 'mes-devis',
+            label: 'Mes devis',
             icon: <FaTools />
           },
           {
@@ -216,29 +216,25 @@ const Dashboard = () => {
       case 'apercu':
         return <AperçuContent userRole={userRole} handleTabChange={handleTabChange} stats={stats} />;
       case 'devis':
-        return userRole === 'administrateur' ? 
-          <DemandesDevisContent /> : 
-          <DevisList userType={userRole} />;
-      case 'nouveau-devis':
-        return <DevisParticulier onDevisSubmitted={() => handleTabChange('devis')} />;
+        return userRole === 'administrateur' 
+          ? <DemandesDevisContent /> 
+          : <DevisList userType={userRole} />;
       case 'mes-devis':
-        return <MesDevisContent />;
+        return <DevisList userType={userRole} />;
       case 'messages':
-        return userRole === 'administrateur' ? 
-          <MessagesContent /> : 
-          <Messages />;
-      case 'projets':
-        return <ProjetsContent />;
+        return <MessagesContent userType={userRole} />;
+      case 'profile':
+        return userRole === 'administrateur' 
+          ? <ProfileContent /> 
+          : <ProfileContent userType={userRole} />;
       case 'utilisateurs':
         return <UtilisateursContent />;
       case 'validations':
         return <ValidationsContent />;
-      case 'statistiques':
-        return <StatistiquesContent />;
-      case 'profile':
-        return <ProfileContent />;
+      case 'nouveau-devis':
+        return <DevisParticulier onDevisSubmitted={() => handleTabChange('devis')} />;
       default:
-        return <AperçuContent userRole={userRole} handleTabChange={handleTabChange} stats={stats} />;
+        return <div>Contenu non disponible</div>;
     }
   };
 

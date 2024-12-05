@@ -34,8 +34,25 @@ export const checkNotificationPermission = async () => {
   }
 };
 
+// Register service worker
+export const registerServiceWorker = async () => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      return registration;
+    }
+    throw new Error('Service Worker not supported in this browser');
+  } catch (error) {
+    console.error('Service Worker registration failed:', error);
+    throw error;
+  }
+};
+
 export const requestNotificationPermission = async (userId, userRole) => {
   try {
+    // Register service worker first
+    await registerServiceWorker();
+    
     const permission = await checkNotificationPermission();
     if (!permission) {
       return null;

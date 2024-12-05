@@ -24,7 +24,11 @@ module.exports = {
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
     'no-unused-vars': 'warn',
-    'no-undef': 'error'
+    'no-undef': 'error',
+    'react/no-unescaped-entities': 'off',
+    'no-irregular-whitespace': 'warn',
+    'no-useless-catch': 'warn',
+    'no-useless-escape': 'warn'
   },
   settings: {
     react: {
