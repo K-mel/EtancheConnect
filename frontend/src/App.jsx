@@ -15,6 +15,7 @@ import About from './components/About/About';
 import HowItWorks from './components/HowItWorks/HowItWorks';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
 import DevisParticulier from './components/DevisParticulier/DevisParticulier';
+import ProfessionalQuoteForm from './components/QuoteModule/ProfessionalQuoteForm';
 import './App.css';
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
           <Route path="/cgv" element={<Terms />} />
           <Route path="/confidentialite" element={<Privacy />} />
           <Route path="/devis/particulier" element={<DevisParticulier />} />
+          <Route path="/devis-professionnel/:devisId" element={<ProfessionalQuoteForm />} />
         </Routes>
       </Router>
     </AuthProvider>

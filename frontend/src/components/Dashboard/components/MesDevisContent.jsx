@@ -2,27 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from '../../../contexts/AuthContext';
+import QuoteDetailsModal from './QuoteDetailsModal';
 import './MesDevisContent.css';
 
 const MesDevisContent = () => {
   const [devis, setDevis] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDevis, setSelectedDevis] = useState(null);
   const { currentUser } = useAuth();
 
   useEffect(() => {
     const fetchDevis = async () => {
       try {
         const q = query(
-          collection(db, 'devis'),
-          where('particulierId', '==', currentUser.uid),
-          where('status', '==', 'proposé')
+          collection(db, 'professionalQuotes'),
+          where('professionalId', '==', currentUser.uid)
         );
         
         const querySnapshot = await getDocs(q);
-        const devisData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const devisData = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+          return {
+            id: doc.id,
+            ...data,
+            date: createdAt
+          };
+        });
         
         setDevis(devisData);
         setLoading(false);
@@ -35,34 +41,121 @@ const MesDevisContent = () => {
     fetchDevis();
   }, [currentUser]);
 
+  const handleOpenDetails = (devis) => {
+    setSelectedDevis(devis);
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedDevis(null);
+  };
+
   if (loading) {
-    return <div>Chargement des devis...</div>;
+    return <div className="loading">Chargement des devis...</div>;
   }
 
   if (devis.length === 0) {
-    return <div>Vous n'avez pas encore reçu de propositions de devis.</div>;
+    return <div className="empty-state">Vous n'avez pas encore envoyé de devis.</div>;
   }
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'en_attente_validation':
+        return 'En attente validation';
+      case 'accepte':
+        return 'Accepté';
+      case 'refuse':
+        return 'Refusé';
+      default:
+        return 'En attente validation';
+    }
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'en_attente_validation':
+        return 'status-badge pending';
+      case 'accepte':
+        return 'status-badge accepted';
+      case 'refuse':
+        return 'status-badge rejected';
+      default:
+        return 'status-badge pending';
+    }
+  };
 
   return (
     <div className="mes-devis-content">
       <div className="devis-grid">
         {devis.map((devis) => (
-          <div key={devis.id} className="devis-card">
-            <h3>Devis #{devis.id.slice(0, 8)}</h3>
-            <div className="devis-details">
-              <p><strong>Professionnel:</strong> {devis.professionnelNom}</p>
-              <p><strong>Date:</strong> {new Date(devis.dateCreation.toDate()).toLocaleDateString()}</p>
-              <p><strong>Montant proposé:</strong> {devis.montant}€</p>
-              <p><strong>Description:</strong> {devis.description}</p>
+          <div key={devis.id} className="professional-quote">
+            <div className="professional-quote-header">
+              <span className="quote-reference">Devis #{devis.id.slice(0, 8)}</span>
+              <span className={getStatusClass(devis.status)}>
+                {getStatusLabel(devis.status)}
+              </span>
             </div>
-            <div className="devis-actions">
-              <button className="accept-btn">Accepter</button>
-              <button className="reject-btn">Refuser</button>
-              <button className="contact-btn">Contacter</button>
+            <div className="quote-date">
+              <span className="date-label">Date d'envoi :</span>
+              {devis.date.toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </div>
+
+            <div className="quote-details">
+              <div className="quote-section">
+                <h4>Client</h4>
+                <p><strong>Nom:</strong> {devis.clientName}</p>
+                <p><strong>Email:</strong> {devis.clientEmail}</p>
+                <p><strong>Téléphone:</strong> {devis.clientPhone}</p>
+              </div>
+
+              <div className="quote-section">
+                <h4>Travaux</h4>
+                <p><strong>Type:</strong> {devis.workType}</p>
+                <p><strong>Surface:</strong> {devis.surfaceArea} m²</p>
+                <p><strong>Description:</strong> {devis.workDescription}</p>
+              </div>
+
+              <div className="quote-section">
+                <h4>Montants</h4>
+                <div className="quote-totals">
+                  <div className="total-row">
+                    <span className="total-label">Total HT</span>
+                    <span className="total-amount">{devis.subtotalHT.toFixed(2)}€</span>
+                  </div>
+                  <div className="total-row">
+                    <span className="total-label">TVA (10%)</span>
+                    <span className="total-amount">{devis.tva.toFixed(2)}€</span>
+                  </div>
+                  <div className="total-row">
+                    <span className="total-label">Total TTC</span>
+                    <span className="total-amount final">{devis.totalTTC.toFixed(2)}€</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="quote-actions">
+              <button 
+                className="quote-action-button primary"
+                onClick={() => handleOpenDetails(devis)}
+              >
+                Voir détails
+              </button>
+              <button className="quote-action-button secondary">Contacter le client</button>
             </div>
           </div>
         ))}
       </div>
+
+      {selectedDevis && (
+        <QuoteDetailsModal 
+          devis={selectedDevis} 
+          onClose={handleCloseDetails}
+        />
+      )}
     </div>
   );
 };

@@ -161,6 +161,15 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
             });
             
             statsData.devis = devisEnCours.length;
+
+            // Compter les devis en attente de signature
+            const devisSignatureQuery = query(
+              collection(db, 'professionalQuotes'),
+              where('clientEmail', '==', user.email),
+              where('status', '==', 'en_attente_validation')
+            );
+            const devisSignatureSnapshot = await getDocs(devisSignatureQuery);
+            statsData.devisEnAttenteSignature = devisSignatureSnapshot.size;
           }
 
           // Messages non lus
@@ -343,6 +352,13 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         onClick: () => handleTabChange('devis')
       },
       {
+        icon: <FaFileInvoiceDollar />,
+        value: stats.devisEnAttenteSignature,
+        label: 'Devis en attente de signature',
+        color: '#8b5cf6',
+        onClick: () => handleTabChange('devis-recus')
+      },
+      {
         icon: <FaEnvelope />,
         value: stats.messagesNonLus,
         label: 'Messages non lus',
@@ -355,13 +371,6 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
         label: 'Total messages',
         color: '#f59e0b',
         onClick: () => handleTabChange('messages', { showDeleted: true })
-      },
-      {
-        icon: <FaFileInvoiceDollar />,
-        value: stats.devisEnAttenteSignature,
-        label: 'Devis en attente de signature',
-        color: '#8b5cf6',
-        onClick: () => handleTabChange('devis')
       }
     ];
   };

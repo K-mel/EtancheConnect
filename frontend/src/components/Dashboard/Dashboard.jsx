@@ -10,7 +10,7 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck, FaPlusCircle, FaClipboardList } from 'react-icons/fa';
+import { FaProjectDiagram, FaFileAlt, FaEnvelope, FaUsers, FaTools, FaUserTie, FaUserCheck, FaPlusCircle, FaClipboardList, FaInbox } from 'react-icons/fa';
 import DevisList from './DevisList';
 import Messages from '../MessagesModule/Messages';
 import ProfileContent from '../Profile/ProfileContent';
@@ -24,6 +24,7 @@ import MessagesContent from './components/MessagesContent';
 import DevisParticulier from '../DevisParticulier/DevisParticulier';
 import DemandesDevisContent from './components/DemandesDevisContent';
 import MesDevisContent from './components/MesDevisContent';
+import ReceivedQuotesList from './ReceivedQuotesList';
 import '../../styles/dashboard.css';
 import './styles/statistiques.css';
 
@@ -135,9 +136,9 @@ const Dashboard = () => {
             icon: <FaFileAlt />
           },
           {
-            id: 'mes-devis',
+            id: 'devis-recus',
             label: 'Mes devis reçus',
-            icon: <FaClipboardList />
+            icon: <FaInbox />
           },
           {
             id: 'messages',
@@ -160,8 +161,8 @@ const Dashboard = () => {
             icon: <FaFileAlt />
           },
           {
-            id: 'mes-devis',
-            label: 'Mes devis',
+            id: 'mes-devis-envoyes',
+            label: 'Mes devis envoyés',
             icon: <FaTools />
           },
           {
@@ -219,10 +220,15 @@ const Dashboard = () => {
         return userRole === 'administrateur' 
           ? <DemandesDevisContent /> 
           : <DevisList userType={userRole} />;
-      case 'mes-devis':
-        return <DevisList userType={userRole} />;
+      case 'devis-recus':
+        return <ReceivedQuotesList />;
+      case 'mes-devis-envoyes':
+        if (userRole === 'professionnel') {
+          return <MesDevisContent />;
+        }
+        return null;
       case 'messages':
-        return <MessagesContent userType={userRole} />;
+        return <Messages userType={userRole} />;
       case 'profile':
         return userRole === 'administrateur' 
           ? <ProfileContent /> 
@@ -279,13 +285,14 @@ const Dashboard = () => {
             {activeTab === 'apercu' && 'Tableau de bord'}
             {activeTab === 'devis' && (userRole === 'particulier' ? 'Mes demandes de devis' : 'Devis Reçus')}
             {activeTab === 'nouveau-devis' && 'Demande de devis'}
-            {activeTab === 'mes-devis' && 'Mes devis reçus'}
+            {activeTab === 'mes-devis-envoyes' && 'Mes devis envoyés'}
             {activeTab === 'messages' && 'Messagerie'}
             {activeTab === 'projets' && 'Mes Projets'}
             {activeTab === 'utilisateurs' && 'Gestion des Utilisateurs'}
             {activeTab === 'validations' && 'Validations en Attente'}
             {activeTab === 'statistiques' && 'Statistiques Globales'}
             {activeTab === 'profile' && 'Mon Profil'}
+            {activeTab === 'devis-recus' && 'Mes devis reçus'}
           </h1>
         </div>
         {renderContent()}

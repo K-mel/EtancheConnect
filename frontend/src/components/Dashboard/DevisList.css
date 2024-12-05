@@ -1,7 +1,7 @@
 .devis-list-container {
-  padding: 1rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  min-height: calc(100vh - 64px);
 }
 
 .devis-header {
@@ -49,131 +49,283 @@
   transform: translateY(-2px);
 }
 
-.devis-list {
-  padding: 20px;
+.devis-table-container {
   width: 100%;
-  background: var(--white);
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
-  overflow: hidden;
-}
-
-.devis-list table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
+  overflow-x: auto;
   background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.06);
+  margin: 1rem 0;
 }
 
-.devis-list th,
-.devis-list td {
-  padding: 12px;
+.devis-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0;
+  table-layout: fixed;
+}
+
+.devis-table th,
+.devis-table td {
+  padding: 16px 24px;
+}
+
+.devis-table th {
+  background-color: #f8fafc;
   text-align: left;
-  border-bottom: 1px solid #eee;
-}
-
-.devis-list th {
-  background-color: #f8f9fa;
   font-weight: 600;
-  color: #495057;
-}
-
-.devis-list tr:hover {
-  background-color: #f8f9fa;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  color: #344767;
+  border-bottom: 2px solid #edf2f7;
   font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.devis-table td {
+  border-bottom: 1px solid #edf2f7;
+  color: #4a5568;
+  font-size: 0.9375rem;
+  vertical-align: middle;
+  background-color: white;
+  line-height: 1.5;
+}
+
+.devis-table th:nth-child(1), 
+.devis-table td:nth-child(1) { /* N° Demande */
+  width: 15%;
+  min-width: 140px;
+  padding-right: 32px;
+}
+
+.devis-table th:nth-child(2),
+.devis-table td:nth-child(2) { /* Date */
+  width: 12%;
+  min-width: 120px;
+  padding-right: 32px;
+}
+
+.devis-table th:nth-child(3),
+.devis-table td:nth-child(3) { /* Type de projet */
+  width: 15%;
+  min-width: 140px;
+  padding-right: 32px;
+}
+
+.devis-table th:nth-child(4),
+.devis-table td:nth-child(4) { /* Surface */
+  width: 10%;
+  min-width: 100px;
+  padding-right: 32px;
+  text-align: right;
+}
+
+.devis-table th:nth-child(5),
+.devis-table td:nth-child(5) { /* Ville */
+  width: 15%;
+  min-width: 140px;
+  padding-right: 32px;
+}
+
+.devis-table th:nth-child(6),
+.devis-table td:nth-child(6) { /* Status */
+  width: 13%;
+  min-width: 120px;
+  padding-right: 32px;
+}
+
+.devis-table th:nth-child(7),
+.devis-table td:nth-child(7) { /* Actions */
+  width: 20%;
+  min-width: 200px;
+}
+
+.devis-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.devis-table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.devis-table tbody tr:hover td {
+  background-color: #f1f5f9;
+}
+
+.devis-table td:first-child a {
+  color: #2563eb;
+  text-decoration: none;
   font-weight: 500;
 }
 
-.status-en-attente {
-  background-color: var(--warning);
-  color: white;
+.devis-table td:first-child a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
-.status-accepte {
-  background-color: var(--success);
-  color: white;
+.devis-actions-cell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
-.status-refuse {
-  background-color: var(--danger);
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.action-button.voir {
+  background-color: #3b82f6;
   color: white;
+  padding: 6px 12px;
+  min-width: 80px;
+}
+
+.action-button.voir:hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+}
+
+.action-button.envoyer-devis {
+  background-color: #22c55e;
+  color: white;
+  font-weight: 600;
+  padding: 8px 20px;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.action-button.envoyer-devis:hover {
+  background-color: #16a34a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(34, 197, 94, 0.3);
+}
+
+.action-button.envoyer-devis:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.actions-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .status {
   padding: 6px 12px;
   border-radius: 20px;
-  font-size: 0.85em;
+  font-size: 0.875rem;
   font-weight: 500;
-  text-transform: capitalize;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.status.en_attente {
-  background-color: #fff3cd;
-  color: #856404;
+.status.valide {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
 }
 
-.status.accepte {
-  background-color: #d4edda;
-  color: #155724;
+.status-waiting {
+  background-color: #fff8e1;
+  color: #b45309;
+  border: 1px solid #fef3c7;
 }
 
-.status.refuse {
-  background-color: #f8d7da;
-  color: #721c24;
+.status-discussion {
+  background-color: #e8f4fd;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
 }
 
-.status.en_discussion {
-  background-color: #FF9800;
+.status-pending-signature {
+  background-color: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.status-signed {
+  background-color: #10b981;
   color: white;
+  border: 1px solid #059669;
 }
 
-.status.devis_envoye {
-  background-color: #4caf50;
+.status-refused {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fee2e2;
+}
+
+.status-cancelled {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+}
+
+.status-valid {
+  background-color: #10b981;
   color: white;
+  border: 1px solid #059669;
 }
 
-.status.attente_reponse {
-  background-color: #ffd700;
-  color: #000;
+.status-sent {
+  background-color: #0ea5e9;
+  color: white;
+  border: 1px solid #0284c7;
 }
 
-.devis-actions-cell {
+.status-accepted {
+  background-color: #10b981;
+  color: white;
+  border: 1px solid #059669;
+}
+
+.loading-spinner {
   display: flex;
-  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  color: #6b7280;
+  font-size: 1rem;
 }
 
-.action-button {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  background-color: #007bff;
-  color: white;
-  cursor: pointer;
-  transition: background-color 0.2s;
+.error-message {
+  color: #dc2626;
+  text-align: center;
+  padding: 1rem;
+  background: #fee2e2;
+  border-radius: 8px;
+  margin: 1rem 0;
+  border: 1px solid #fecaca;
 }
 
-.action-button:hover {
-  background-color: #0056b3;
-}
-
-.devis-empty {
+.no-devis-message {
   text-align: center;
   padding: 3rem;
-  color: var(--text-light);
-}
-
-.devis-empty-icon {
-  font-size: 3rem;
-  color: var(--text-light);
-  margin-bottom: 1rem;
+  color: #6b7280;
+  font-style: italic;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
 }
 
 .modal-overlay {
@@ -245,7 +397,6 @@
   color: #333;
 }
 
-/* Styles pour la grille de photos */
 .photos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -287,145 +438,6 @@
   background-color: #5a6268;
 }
 
-/* Styles pour les formulaires de devis et messages */
-.devis-actions {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.action-button.send-devis {
-  background-color: #4CAF50;
-  color: white;
-}
-
-.action-button.send-message {
-  background-color: #2196F3;
-  color: white;
-}
-
-.devis-form,
-.message-form {
-  background-color: #f9f9f9;
-  padding: 20px;
-  border-radius: 8px;
-  margin-top: 20px;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-group input[type="number"] {
-  width: 200px;
-}
-
-.submit-button {
-  background-color: #4CAF50;
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  margin-top: 10px;
-}
-
-.submit-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-.error-message {
-  color: #f44336;
-  margin-top: 10px;
-  font-size: 14px;
-}
-
-.question-btn {
-  margin-left: 10px;
-  padding: 8px 16px;
-  background-color: #4a90e2;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.question-btn:hover {
-  background-color: #357abd;
-}
-
-.question-textarea {
-  width: 100%;
-  min-height: 120px;
-  padding: 12px;
-  margin: 10px 0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  resize: vertical;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.submit-btn {
-  padding: 8px 20px;
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.submit-btn:hover {
-  background-color: #45a049;
-}
-
-.submit-btn:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-.cancel-btn {
-  padding: 8px 20px;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.cancel-btn:hover {
-  background-color: #da190b;
-}
-
 .search-container {
   margin-bottom: 20px;
   padding: 15px;
@@ -436,45 +448,148 @@
 
 .search-input {
   width: 100%;
-  padding: 12px;
-  font-size: 14px;
+  max-width: 400px;
+  padding: 10px 16px;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  transition: all 0.3s ease;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  color: #4a5568;
+  transition: all 0.2s ease;
+  margin-bottom: 1.5rem;
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .search-input::placeholder {
   color: #a0aec0;
 }
 
-@media (max-width: 768px) {
+@media screen and (max-width: 1024px) {
+  .devis-table th,
+  .devis-table td {
+    padding: 12px;
+  }
+  
+  .action-button {
+    padding: 6px 12px;
+  }
+}
+
+@media screen and (max-width: 768px) {
   .devis-list-container {
-    padding: 0.5rem;
+    padding: 1rem;
   }
-
-  .devis-header {
-    padding: 1.5rem;
+  
+  .devis-table {
+    font-size: 0.875rem;
   }
-
-  .devis-header h1 {
-    font-size: 1.5rem;
+  
+  .status {
+    padding: 4px 8px;
+    font-size: 0.75rem;
   }
-
-  .devis-actions {
+  
+  .devis-actions-cell {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
-  .devis-list {
-    overflow-x: auto;
+  .action-button {
+    font-size: 0.8125rem;
+    padding: 6px 12px;
+    min-width: auto;
   }
 
-  .devis-list table {
-    min-width: 600px;
+  .action-button.envoyer-devis {
+    padding: 6px 16px;
   }
+
+  .devis-table td,
+  .devis-table th {
+    padding: 12px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .devis-actions-cell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .action-button {
+    font-size: 0.8125rem;
+    padding: 6px 12px;
+    min-width: auto;
+  }
+
+  .action-button.envoyer-devis {
+    padding: 6px 16px;
+  }
+
+  .devis-table td,
+  .devis-table th {
+    padding: 12px;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .devis-table-container {
+    border-radius: 8px;
+  }
+  
+  .action-button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .devis-table-container {
+    margin: 0.5rem 0;
+  }
+
+  .status {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .devis-table th,
+  .devis-table td {
+    padding: 12px 16px;
+  }
+  
+  .devis-table {
+    min-width: 900px; /* Assure un minimum de largeur pour le scroll horizontal */
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .devis-table th:nth-child(n),
+  .devis-table td:nth-child(n) {
+    padding-right: 16px;
+  }
+}
+
+@keyframes buttonPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.action-button:hover {
+  animation: buttonPop 0.3s ease;
 }

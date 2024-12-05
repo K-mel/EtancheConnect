@@ -3,27 +3,12 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  FaUser,
-  FaUserTie,
-  FaUsers,
-  FaEnvelope,
-  FaPhone,
-  FaMapMarkerAlt,
-  FaBuilding,
-  FaIdCard,
-  FaTools,
-  FaFileAlt,
-  FaMoneyBillWave,
-  FaUniversity,
-  FaFileContract,
-  FaUserClock,
-  FaCheckCircle,
-  FaExclamationCircle,
-  FaEdit,
-  FaSave,
-  FaTimes,
-  FaEye
+  FaUser, FaUserTie, FaUsers, FaEnvelope, FaPhone, FaMapMarkerAlt,
+  FaBuilding, FaIdCard, FaTools, FaFileAlt, FaMoneyBillWave,
+  FaUniversity, FaFileContract, FaUserClock, FaCheckCircle,
+  FaExclamationCircle, FaEdit, FaSave, FaTimes, FaEye
 } from 'react-icons/fa';
+import './ProfileContent.css';
 
 const ProfileContent = ({ userRole }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -153,7 +138,7 @@ const ProfileContent = ({ userRole }) => {
               <input
                 type="text"
                 name="displayName"
-                value={userData.displayName}
+                value={userData.displayName || ''}
                 onChange={handleChange}
                 disabled={!isEditing}
                 placeholder="Votre nom complet"
@@ -166,7 +151,7 @@ const ProfileContent = ({ userRole }) => {
               <input
                 type="email"
                 name="email"
-                value={userData.email}
+                value={userData.email || ''}
                 disabled={true}
                 className="form-control"
               />
@@ -177,7 +162,7 @@ const ProfileContent = ({ userRole }) => {
               <input
                 type="tel"
                 name="phone"
-                value={userData.phone}
+                value={userData.phone || ''}
                 onChange={handleChange}
                 disabled={!isEditing}
                 placeholder="Votre numéro de téléphone"
@@ -189,7 +174,7 @@ const ProfileContent = ({ userRole }) => {
               <label><FaMapMarkerAlt /> Adresse</label>
               <textarea
                 name="address"
-                value={userData.address}
+                value={userData.address || ''}
                 onChange={handleChange}
                 disabled={!isEditing}
                 placeholder="Votre adresse complète"
@@ -209,7 +194,7 @@ const ProfileContent = ({ userRole }) => {
                   <input
                     type="text"
                     name="companyName"
-                    value={userData.companyName}
+                    value={userData.companyName || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Nom de votre entreprise"
@@ -222,7 +207,7 @@ const ProfileContent = ({ userRole }) => {
                   <input
                     type="text"
                     name="siret"
-                    value={userData.siret}
+                    value={userData.siret || ''}
                     disabled={true}
                     className="form-control"
                   />
@@ -233,7 +218,7 @@ const ProfileContent = ({ userRole }) => {
                   <input
                     type="text"
                     name="sector"
-                    value={userData.sector}
+                    value={userData.sector || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Votre secteur d'activité"
@@ -246,7 +231,7 @@ const ProfileContent = ({ userRole }) => {
                   <input
                     type="text"
                     name="workingArea"
-                    value={userData.workingArea}
+                    value={userData.workingArea || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Votre zone d'intervention"
@@ -254,29 +239,27 @@ const ProfileContent = ({ userRole }) => {
                   />
                 </div>
 
-                <div className="form-group full-width">
+                <div className="form-group">
                   <label><FaFileAlt /> Description des services</label>
                   <textarea
                     name="serviceDescription"
-                    value={userData.serviceDescription}
+                    value={userData.serviceDescription || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="Décrivez vos services..."
+                    placeholder="Description de vos services"
                     className="form-control"
-                    rows="4"
                   />
                 </div>
 
-                <div className="form-group full-width">
+                <div className="form-group">
                   <label><FaMoneyBillWave /> Tarifs</label>
                   <textarea
                     name="rates"
-                    value={userData.rates}
+                    value={userData.rates || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="Détaillez vos tarifs..."
+                    placeholder="Vos tarifs"
                     className="form-control"
-                    rows="3"
                   />
                 </div>
               </div>
@@ -286,11 +269,11 @@ const ProfileContent = ({ userRole }) => {
               <h3><FaUniversity /> Informations Bancaires</h3>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Nom de la banque</label>
+                  <label><FaUniversity /> Nom de la banque</label>
                   <input
                     type="text"
                     name="bankName"
-                    value={userData.bankName}
+                    value={userData.bankName || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Nom de votre banque"
@@ -299,27 +282,27 @@ const ProfileContent = ({ userRole }) => {
                 </div>
 
                 <div className="form-group">
-                  <label>IBAN</label>
+                  <label><FaFileContract /> IBAN</label>
                   <input
                     type="text"
                     name="iban"
-                    value={userData.iban}
+                    value={userData.iban || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="IBAN"
+                    placeholder="Votre IBAN"
                     className="form-control"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>BIC</label>
+                  <label><FaFileContract /> BIC</label>
                   <input
                     type="text"
                     name="bic"
-                    value={userData.bic}
+                    value={userData.bic || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="BIC"
+                    placeholder="Votre BIC"
                     className="form-control"
                   />
                 </div>
@@ -328,104 +311,46 @@ const ProfileContent = ({ userRole }) => {
 
             <div className="profile-section">
               <h3><FaFileAlt /> Documents</h3>
-              <div className="documents-grid">
-                <div className="document-card">
-                  <div className="document-icon">
-                    <FaIdCard />
+              <div className="documents-section">
+                {Object.entries(userData.documents || {}).map(([docType, doc]) => (
+                  <div key={docType} className="document-card">
+                    <div className="document-info">
+                      <FaFileAlt className="document-icon" />
+                      <div className="document-details">
+                        <h4>{docType === 'idCard' ? "Pièce d'identité" : 
+                             docType === 'insurance' ? "Attestation d'assurance" : 
+                             docType === 'kbis' ? "Extrait Kbis" : docType}</h4>
+                        {doc.uploadedAt && (
+                          <p>Mis à jour le {new Date(doc.uploadedAt.seconds * 1000).toLocaleDateString()}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="document-actions">
+                      {doc.url && (
+                        <button
+                          type="button"
+                          className="document-button view"
+                          onClick={() => window.open(doc.url, '_blank')}
+                        >
+                          <FaEye />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="document-info">
-                    <h4>Carte d'identité</h4>
-                    {userData.documents?.idCard?.uploadedAt && (
-                      <p className="document-date">
-                        Mis à jour le {new Date(userData.documents.idCard.uploadedAt).toLocaleDateString()}
-                      </p>
-                    )}
-                    {userData.documents?.idCard?.url ? (
-                      <a
-                        href={userData.documents.idCard.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="document-link"
-                      >
-                        <FaEye /> Voir le document
-                      </a>
-                    ) : (
-                      <p className="document-missing">Document non fourni</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="document-card">
-                  <div className="document-icon">
-                    <FaFileContract />
-                  </div>
-                  <div className="document-info">
-                    <h4>Assurance</h4>
-                    {userData.documents?.insurance?.uploadedAt && (
-                      <p className="document-date">
-                        Mis à jour le {new Date(userData.documents.insurance.uploadedAt).toLocaleDateString()}
-                      </p>
-                    )}
-                    {userData.documents?.insurance?.url ? (
-                      <a
-                        href={userData.documents.insurance.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="document-link"
-                      >
-                        <FaEye /> Voir le document
-                      </a>
-                    ) : (
-                      <p className="document-missing">Document non fourni</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="document-card">
-                  <div className="document-icon">
-                    <FaFileAlt />
-                  </div>
-                  <div className="document-info">
-                    <h4>KBIS</h4>
-                    {userData.documents?.kbis?.uploadedAt && (
-                      <p className="document-date">
-                        Mis à jour le {new Date(userData.documents.kbis.uploadedAt).toLocaleDateString()}
-                      </p>
-                    )}
-                    {userData.documents?.kbis?.url ? (
-                      <a
-                        href={userData.documents.kbis.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="document-link"
-                      >
-                        <FaEye /> Voir le document
-                      </a>
-                    ) : (
-                      <p className="document-missing">Document non fourni</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="profile-status">
-              <div className={`status-badge status-${userData.status || 'pending'}`}>
-                <FaUserClock />
-                <span>Status: {userData.status ? userData.status.charAt(0).toUpperCase() + userData.status.slice(1) : 'En attente'}</span>
+                ))}
               </div>
             </div>
           </>
         )}
 
         {isEditing && (
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary">
+          <div className="button-group">
+            <button type="submit" className="save-button">
               <FaSave /> Enregistrer
             </button>
             <button
               type="button"
-              className="btn btn-secondary"
+              className="cancel-button"
               onClick={() => setIsEditing(false)}
             >
               <FaTimes /> Annuler

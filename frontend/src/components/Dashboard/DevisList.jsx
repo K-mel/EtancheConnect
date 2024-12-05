@@ -1,11 +1,26 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy, 
+  doc, 
+  getDoc, 
+  getDocs,
+  updateDoc,
+  addDoc,
+  serverTimestamp
+} from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
+import ProfessionalQuoteForm from '../QuoteModule/ProfessionalQuoteForm';
 import { validateMessageContent, sanitizeMessageContent } from '../../utils/messageValidation';
 import { validateQuestionContent } from '../../utils/questionValidation';
 import { formatDevisNumber } from '../../utils/formatters';
+import { Link } from 'react-router-dom';
 import './styles/devis.css';
+import './DevisList.css';
 
 const DevisList = ({ userType }) => {
   const [devis, setDevis] = useState([]);
@@ -14,6 +29,7 @@ const DevisList = ({ userType }) => {
   const [selectedDevis, setSelectedDevis] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [editForm, setEditForm] = useState({
     description: '',
     surface: '',
@@ -32,6 +48,8 @@ const DevisList = ({ userType }) => {
   const [questionContent, setQuestionContent] = useState('');
   const [devisWithMessages, setDevisWithMessages] = useState(new Set());
   const [searchDevisNumber, setSearchDevisNumber] = useState('');
+  const [professionalQuotes, setProfessionalQuotes] = useState([]);
+  const [activeTab, setActiveTab] = useState('received');
   const { currentUser } = useAuth();
 
   const setupMessagesListener = useCallback(() => {
@@ -140,7 +158,8 @@ const DevisList = ({ userType }) => {
       'annule': 'Annulé',
       'valide': 'Validé',
       'devis_envoye': 'Devis envoyé',
-      'accepte': 'Accepté'
+      'accepte': 'Accepté',
+      'en_attente_validation': 'En attente validation'
     };
     return statusLabels[status] || status;
   };
@@ -155,9 +174,22 @@ const DevisList = ({ userType }) => {
       'annule': 'status-cancelled',
       'valide': 'status-valid',
       'devis_envoye': 'status-sent',
-      'accepte': 'status-accepted'
+      'accepte': 'status-accepted',
+      'en_attente_validation': 'status-waiting'
     };
-    return `status ${statusClasses[status] || ''}`;
+    return `status ${statusClasses[status] || 'status-default'}`;
+  };
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const handleValidateDevis = async (devisId) => {
@@ -381,6 +413,16 @@ const DevisList = ({ userType }) => {
     }
   };
 
+  const handleSendQuote = (devisData) => {
+    setSelectedDevis(devisData);
+    setShowQuoteForm(true);
+  };
+
+  const handleCloseQuoteForm = () => {
+    setShowQuoteForm(false);
+    setSelectedDevis(null);
+  };
+
   const renderActions = (devis) => {
     if (userType === 'administrateur' && devis.status === 'en_attente') {
       return (
@@ -402,12 +444,22 @@ const DevisList = ({ userType }) => {
     }
     
     return (
-      <button 
-        className="action-button"
-        onClick={() => setSelectedDevis(devis)}
-      >
-        Voir détails
-      </button>
+      <div className="action-buttons">
+        <button 
+          className="view-button"
+          onClick={() => setSelectedDevis(devis)}
+        >
+          Voir
+        </button>
+        {userType === 'professionnel' && devis.status === 'valide' && (
+          <Link 
+            to={`/devis-professionnel/${devis.id}`}
+            className="action-button envoyer-devis"
+          >
+            Envoyer un devis
+          </Link>
+        )}
+      </div>
     );
   };
 
@@ -507,7 +559,7 @@ const DevisList = ({ userType }) => {
               <p><strong>Adresse:</strong> {selectedDevis.address}</p>
               <p><strong>Ville:</strong> {selectedDevis.ville}</p>
               <p><strong>Code Postal:</strong> {selectedDevis.codePostal}</p>
-              <p><strong>Status:</strong> <span className={getStatusClass(selectedDevis.status)}>{getStatusLabel(selectedDevis.status)}</span></p>
+              <p><strong>Status:</strong> <span className={getStatusClass(selectedDevis.status)}>{getStatusLabel(selectedDevis.status)}</span> {selectedDevis.validatedAt && <span> - Validé le {formatTimestamp(selectedDevis.validatedAt)}</span>}</p>
               <p><strong>Description:</strong> {selectedDevis.description || 'Aucune description'}</p>
 
               {userType === 'particulier' && selectedDevis.status !== 'refuse' && (
@@ -558,74 +610,139 @@ const DevisList = ({ userType }) => {
   }, [currentUser, userType, fetchDevis]);
 
   // Fonction pour filtrer les devis
-  const filteredDevis = useMemo(() => {
+  const getFilteredDevis = () => {
     if (!searchDevisNumber || userType !== 'professionnel') return devis;
     
     return devis.filter(d => {
       const devisNumber = formatDevisNumber(d.id);
       return devisNumber.toLowerCase().includes(searchDevisNumber.toLowerCase().trim());
     });
-  }, [devis, searchDevisNumber, userType]);
+  };
+
+  const filteredDevis = getFilteredDevis();
+
+  // Charger les devis professionnels
+  useEffect(() => {
+    if (currentUser && userType === 'professionnel') {
+      // Modification de la requête pour utiliser un index simple
+      const q = query(
+        collection(db, 'professionalQuotes'),
+        where('professionalId', '==', currentUser.uid)
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const quotesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        // Trier les données côté client
+        .sort((a, b) => {
+          if (!a.createdAt || !b.createdAt) return 0;
+          return b.createdAt.seconds - a.createdAt.seconds;
+        });
+        
+        setProfessionalQuotes(quotesData);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [currentUser, userType]);
+
+  // Fonction pour formater le montant
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
 
   return (
     <div className="devis-list-container">
-      {userType === 'professionnel' && (
-        <div className="search-devis-container">
-          <input
-            type="search"
-            placeholder="Rechercher par numéro de devis (ex: DEV-001)"
-            value={searchDevisNumber}
-            onChange={(e) => setSearchDevisNumber(e.target.value)}
-            className="search-devis-input"
-          />
-        </div>
-      )}
+      <div className="devis-header">
+        {userType === 'professionnel' && (
+          <div className="search-devis-container">
+            <input
+              type="search"
+              placeholder="Rechercher par numéro de devis (ex: DEV-001)"
+              value={searchDevisNumber}
+              onChange={(e) => setSearchDevisNumber(e.target.value)}
+              className="search-devis-input"
+            />
+          </div>
+        )}
+      </div>
 
-      {loading ? (
-        <div className="loading">Chargement des devis...</div>
-      ) : error ? (
-        <div className="error">{error}</div>
-      ) : devis.length === 0 ? (
-        <div className="devis-empty">
-          <div className="devis-empty-icon">📄</div>
-          <p>Aucun devis disponible</p>
-        </div>
-      ) : (
-        <div className="devis-list">
-          <table>
-            <thead>
-              <tr>
-                <th>N° Demande</th>
-                <th>Date</th>
-                <th>Type de projet</th>
-                <th>Surface</th>
-                <th>Ville</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDevis.map((devis) => (
-                <tr key={devis.id} className={devis.status}>
-                  <td>{formatDevisNumber(devis.id)}</td>
-                  <td>{devis.createdAt}</td>
-                  <td>{devis.typeProjet}</td>
-                  <td>{devis.surface} m²</td>
-                  <td>{devis.ville}</td>
-                  <td>
-                    <span className={getStatusClass(devis.status)}>
-                      {getStatusLabel(devis.status)}
-                    </span>
-                  </td>
-                  <td className="actions">
-                    {renderActions(devis)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {showQuoteForm && selectedDevis && (
+        <ProfessionalQuoteForm
+          devisData={selectedDevis}
+          onClose={() => {
+            setShowQuoteForm(false);
+            setSelectedDevis(null);
+          }}
+        />
       )}
+      <div className="devis-tabs">
+        <div className="tab-content">
+          <div className="devis-list-container">
+            {loading ? (
+              <div className="loading-spinner">Chargement...</div>
+            ) : error ? (
+              <div className="error-message">{error}</div>
+            ) : (
+              <div className="devis-table-container">
+                {devis.length === 0 ? (
+                  <p className="no-devis-message">Aucun devis disponible</p>
+                ) : (
+                  <table className="devis-table">
+                    <thead>
+                      <tr>
+                        <th>N° Demande</th>
+                        <th>Date</th>
+                        <th>Type de projet</th>
+                        <th>Surface</th>
+                        <th>Ville</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDevis.map((devis) => (
+                        <tr key={devis.id} className={devis.status}>
+                          <td>{formatDevisNumber(devis.id)}</td>
+                          <td>{devis.createdAt}</td>
+                          <td>{devis.typeProjet}</td>
+                          <td>{devis.surface} m²</td>
+                          <td>{devis.ville}</td>
+                          <td>
+                            <span className={getStatusClass(devis.status)}>
+                              {getStatusLabel(devis.status)}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="devis-actions-cell">
+                              <button 
+                                onClick={() => setSelectedDevis(devis)} 
+                                className="action-button voir"
+                              >
+                                Voir
+                              </button>
+                              {userType === 'professionnel' && devis.status === 'valide' && (
+                                <Link 
+                                  to={`/devis-professionnel/${devis.id}`}
+                                  className="action-button envoyer-devis"
+                                >
+                                  Envoyer un devis
+                                </Link>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
       {renderModalContent()}
       {renderFullscreenImage()}
 
