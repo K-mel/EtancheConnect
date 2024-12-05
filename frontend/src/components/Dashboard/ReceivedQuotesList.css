@@ -1,15 +1,178 @@
 .received-quotes-container {
   padding: 2rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .received-quotes-container h2 {
-  color: #1a365d;
-  margin-bottom: 2rem;
+  color: #2c3e50;
   font-size: 1.8rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.quotes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.quote-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+}
+
+.quote-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.quote-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.quote-company {
   font-weight: 600;
+  color: #2c3e50;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.quote-date {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.status-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.status-badge.en_attente_signature {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge.en_attente_validation {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.status-badge.en_attente_paiement {
+  background-color: #e0e7ff;
+  color: #4f46e5;
+}
+
+.status-badge.en_attente_travaux {
+  background-color: #d1fae5;
+  color: #059669;
+}
+
+.status-badge.accepte {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.status-badge.refuse {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.quote-details {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.quote-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.quote-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.quote-info-label {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.quote-info-value {
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.quote-description {
+  color: #4b5563;
+  font-size: 0.95rem;
+  margin-top: 1rem;
+  line-height: 1.5;
+}
+
+.quote-price {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.price-label {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.price-value {
+  color: #2c3e50;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.no-quotes {
+  text-align: center;
+  padding: 3rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  color: #64748b;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .received-quotes-container {
+    padding: 1rem;
+  }
+
+  .quotes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-info-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Modal Styles */
@@ -223,4 +386,31 @@
 
 .quote-modal-content {
   animation: modalFadeIn 0.3s ease-out;
+}
+
+.view-details-button {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.view-details-button:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.view-details-button svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }

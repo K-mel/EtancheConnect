@@ -1,219 +1,149 @@
 import React, { useState, useEffect } from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  getDoc,
-  updateDoc,
-  serverTimestamp
-} from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
+import './ReceivedQuotesList.css';
+import QuoteDetailsModal from './components/QuoteDetailsModal';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { FaEye } from 'react-icons/fa';
 import { formatDevisNumber } from '../../utils/formatters';
-import './DevisList.css';
 
 const ReceivedQuotesList = () => {
   const [receivedQuotes, setReceivedQuotes] = useState([]);
-  const [selectedQuote, setSelectedQuote] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedQuote, setSelectedQuote] = useState(null);
+  const [showModal, setShowModal] = useState(false);
   const { currentUser } = useAuth();
 
   useEffect(() => {
-    fetchReceivedQuotes();
+    const fetchQuotes = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const quotesQuery = query(
+          collection(db, 'professionalQuotes'),
+          where('clientEmail', '==', currentUser.email)
+        );
+        
+        const querySnapshot = await getDocs(quotesQuery);
+        const quotes = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          date: doc.data().createdAt?.toDate(),
+        }));
+        
+        const sortedQuotes = quotes.sort((a, b) => b.date - a.date);
+        setReceivedQuotes(sortedQuotes);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des devis:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuotes();
   }, [currentUser]);
 
-  const fetchReceivedQuotes = async () => {
-    try {
-      console.log("Fetching quotes for user email:", currentUser.email);
-      
-      const q = query(
-        collection(db, 'professionalQuotes'),
-        where('clientEmail', '==', currentUser.email)
-      );
-
-      console.log("Executing Firestore query...");
-      const querySnapshot = await getDocs(q);
-      console.log("Number of quotes found:", querySnapshot.size);
-      
-      const quotes = [];
-      
-      for (const docRef of querySnapshot.docs) {
-        const quoteData = docRef.data();
-        console.log("Quote data:", quoteData);
-        
-        try {
-          const devisRef = doc(db, 'devis', quoteData.devisId);
-          const devisSnap = await getDoc(devisRef);
-          
-          quotes.push({
-            id: docRef.id,
-            ...quoteData,
-            devisOriginal: devisSnap.exists() ? {
-              id: devisSnap.id,
-              ...devisSnap.data()
-            } : {
-              id: quoteData.devisId
-            }
-          });
-          console.log("Added quote:", docRef.id);
-        } catch (error) {
-          console.error("Error fetching original devis:", error);
-          quotes.push({
-            id: docRef.id,
-            ...quoteData
-          });
-        }
-      }
-
-      console.log("Final quotes array:", quotes);
-      setReceivedQuotes(quotes);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching received quotes:", error);
-      setLoading(false);
-    }
-  };
-
-  const handleViewQuote = (quote) => {
+  const handleOpenModal = (quote) => {
     setSelectedQuote(quote);
-    setIsModalOpen(true);
+    setShowModal(true);
   };
 
-  const handleSignQuote = async (quoteId) => {
-    try {
-      await updateDoc(doc(db, 'professionalQuotes', quoteId), {
-        status: 'en_attente_signature',
-        updatedAt: serverTimestamp()
-      });
-      
-      handleElectronicSignature(quoteId);
-    } catch (error) {
-      console.error("Erreur lors de la signature du devis:", error);
-    }
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedQuote(null);
   };
 
-  const handleElectronicSignature = (quoteId) => {
-    // Implémenter la logique de signature électronique
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(price || 0);
   };
 
-  const handlePayment = (quoteId) => {
-    // Implémenter la logique de paiement
-  };
-
-  const renderModal = () => {
-    if (!selectedQuote) return null;
-
-    return (
-      <div className="quote-modal-overlay" onClick={() => setIsModalOpen(false)}>
-        <div className="quote-modal-content" onClick={e => e.stopPropagation()}>
-          <div className="quote-modal-header">
-            <h2>Détails du devis</h2>
-            <button className="close-button" onClick={() => setIsModalOpen(false)}>&times;</button>
-          </div>
-          
-          <div className="quote-modal-body">
-            <div className="quote-details">
-              <h3>Informations du devis</h3>
-              <p><strong>Professionnel:</strong> {selectedQuote.companyName}</p>
-              <p><strong>N° Demande:</strong> {selectedQuote.devisOriginal?.id || 'Non disponible'}</p>
-              <p><strong>N° Devis:</strong> {selectedQuote.id}</p>
-              <p><strong>Montant HT:</strong> {selectedQuote.subtotalHT.toLocaleString('fr-FR')}€</p>
-              <p><strong>TVA:</strong> {selectedQuote.tva.toLocaleString('fr-FR')}€</p>
-              <p><strong>Montant TTC:</strong> {selectedQuote.totalTTC.toLocaleString('fr-FR')}€</p>
-              <p><strong>Acompte demandé:</strong> {selectedQuote.deposit.toLocaleString('fr-FR')}€</p>
-              <p><strong>Description:</strong> {selectedQuote.workDescription}</p>
-              
-              <div className="quote-materials">
-                <h4>Matériaux consommables</h4>
-                <ul>
-                  {selectedQuote.consumableMaterials?.map((material, index) => (
-                    <li key={index}>
-                      {material.description} - {material.quantity} x {material.unitPrice}€
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="quote-labor">
-                <h4>Main d'œuvre</h4>
-                <p>{selectedQuote.laborDetails?.description} - {selectedQuote.laborDetails?.quantity} x {selectedQuote.laborDetails?.unitPrice}€</p>
-              </div>
-            </div>
-
-            <div className="quote-actions">
-              {selectedQuote.status === 'en_attente_validation' && (
-                <button 
-                  className="action-button sign-button"
-                  onClick={() => handleSignQuote(selectedQuote.id)}
-                >
-                  Signer le devis
-                </button>
-              )}
-              {selectedQuote.status === 'en_attente_signature' && (
-                <button 
-                  className="action-button payment-button"
-                  onClick={() => handlePayment(selectedQuote.id)}
-                >
-                  Procéder au paiement de l'acompte
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  const getDisplayStatus = (status) => {
+    const statusMap = {
+      'en_attente_signature': 'En attente de signature',
+      'en_attente_validation': 'En attente de validation',
+      'en_attente_paiement': 'En attente de paiement',
+      'en_attente_travaux': 'En attente des travaux',
+      'accepte': 'Accepté',
+      'refuse': 'Refusé'
+    };
+    return statusMap[status] || status;
   };
 
   if (loading) {
-    return <div className="loading">Chargement des devis reçus...</div>;
+    return <div className="loading">Chargement des devis...</div>;
   }
 
   return (
     <div className="received-quotes-container">
-      <h2>Mes devis reçus</h2>
-      
-      <div className="quotes-table-container">
-        <table className="devis-table">
-          <thead>
-            <tr>
-              <th>N° Demande</th>
-              <th>Professionnel</th>
-              <th>Date</th>
-              <th>Montant TTC</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {receivedQuotes.map((quote) => (
-              <tr key={quote.id}>
-                <td>{formatDevisNumber(quote.devisId)}</td>
-                <td>{quote.companyName}</td>
-                <td>{new Date(quote.createdAt?.toDate()).toLocaleDateString()}</td>
-                <td>{quote.totalTTC.toLocaleString('fr-FR')}€</td>
-                <td>
-                  <span className={`status ${quote.status}`}>
-                    {quote.status}
-                  </span>
-                </td>
-                <td>
-                  <button 
-                    className="action-button voir"
-                    onClick={() => handleViewQuote(quote)}
-                  >
-                    Voir
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <h2>Mes Devis Reçus</h2>
+      {receivedQuotes.length === 0 ? (
+        <div className="no-quotes">
+          Vous n'avez pas encore reçu de devis.
+        </div>
+      ) : (
+        <div className="quotes-grid">
+          {receivedQuotes.map((quote) => (
+            <div key={quote.id} className="quote-card">
+              <div className="quote-header">
+                <div>
+                  <div className="quote-company">{quote.professionalName || 'Professionnel'}</div>
+                  <div className="quote-date">
+                    {quote.date ? format(quote.date, 'dd MMMM yyyy', { locale: fr }) : 'Date non disponible'}
+                  </div>
+                </div>
+                <div className={`status-badge ${quote.status}`}>
+                  {getDisplayStatus(quote.status)}
+                </div>
+              </div>
+              
+              <div className="quote-details">
+                <div className="quote-info-grid">
+                  <div className="quote-info-item">
+                    <span className="quote-info-label">Type de travaux</span>
+                    <span className="quote-info-value">{quote.workType || 'Non spécifié'}</span>
+                  </div>
+                  <div className="quote-info-item">
+                    <span className="quote-info-label">Référence devis</span>
+                    <span className="quote-info-value">{quote.id?.substring(0, 8) || 'N/A'}</span>
+                  </div>
+                  <div className="quote-info-item">
+                    <span className="quote-info-label">Demande de devis</span>
+                    <span className="quote-info-value">{formatDevisNumber(quote.devisId) || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="quote-description">
+                  {quote.workDescription?.substring(0, 100)}
+                  {quote.workDescription?.length > 100 ? '...' : ''}
+                </div>
+                
+                <div className="quote-price">
+                  <span className="price-label">Total TTC</span>
+                  <span className="price-value">{formatPrice(quote.totalTTC)}</span>
+                </div>
 
-      {isModalOpen && renderModal()}
+                <button 
+                  className="view-details-button"
+                  onClick={() => handleOpenModal(quote)}
+                >
+                  <FaEye /> Voir les détails
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <QuoteDetailsModal
+        quote={selectedQuote}
+        isOpen={showModal}
+        onClose={handleCloseModal}
+      />
     </div>
   );
 };
