@@ -228,7 +228,9 @@ const Dashboard = () => {
         }
         return null;
       case 'messages':
-        return <Messages userType={userRole} />;
+        return userRole === 'administrateur' 
+          ? <MessagesContent /> 
+          : <Messages userType={userRole} />;
       case 'profile':
         return userRole === 'administrateur' 
           ? <ProfileContent /> 

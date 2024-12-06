@@ -689,7 +689,7 @@ const MessagesContent = () => {
           {/* Colonne de gauche - Liste des expéditeurs */}
           <div className="senders-column">
             <div className="senders-header">
-              <h2>Messages en attente</h2>
+              <h2>Messages en attente de validation</h2>
             </div>
             <div className="senders-list">
               {loading ? (

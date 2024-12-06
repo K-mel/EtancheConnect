@@ -3,12 +3,16 @@ import { db } from '../../../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from '../../../contexts/AuthContext';
 import QuoteDetailsModal from './QuoteDetailsModal';
+import PrintableQuote from './PrintableQuote';
+import { FaPrint } from 'react-icons/fa';
 import './MesDevisContent.css';
 
 const MesDevisContent = () => {
   const [devis, setDevis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDevis, setSelectedDevis] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -20,15 +24,28 @@ const MesDevisContent = () => {
         );
         
         const querySnapshot = await getDocs(q);
-        const devisData = querySnapshot.docs.map(doc => {
+        const devisData = await Promise.all(querySnapshot.docs.map(async doc => {
           const data = doc.data();
           const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+          
+          // Fetch professional data
+          const professionalDoc = await getDocs(query(
+            collection(db, 'professionals'),
+            where('userId', '==', currentUser.uid)
+          ));
+
+          let professionalData = null;
+          if (!professionalDoc.empty) {
+            professionalData = professionalDoc.docs[0].data();
+          }
+
           return {
             id: doc.id,
             ...data,
-            date: createdAt
+            date: createdAt,
+            professional: professionalData
           };
-        });
+        }));
         
         setDevis(devisData);
         setLoading(false);
@@ -43,9 +60,21 @@ const MesDevisContent = () => {
 
   const handleOpenDetails = (devis) => {
     setSelectedDevis(devis);
+    setIsModalOpen(true);
   };
 
   const handleCloseDetails = () => {
+    setSelectedDevis(null);
+    setIsModalOpen(false);
+  };
+
+  const handlePrint = (devis) => {
+    setSelectedDevis(devis);
+    setShowPrintPreview(true);
+  };
+
+  const handleClosePrintPreview = () => {
+    setShowPrintPreview(false);
     setSelectedDevis(null);
   };
 
@@ -144,6 +173,12 @@ const MesDevisContent = () => {
               >
                 Voir détails
               </button>
+              <button 
+                className="quote-action-button secondary"
+                onClick={() => handlePrint(devis)}
+              >
+                <FaPrint /> Imprimer
+              </button>
               <button className="quote-action-button secondary">Contacter le client</button>
             </div>
           </div>
@@ -152,8 +187,15 @@ const MesDevisContent = () => {
 
       {selectedDevis && (
         <QuoteDetailsModal 
-          devis={selectedDevis} 
+          quote={selectedDevis} 
+          isOpen={isModalOpen}
           onClose={handleCloseDetails}
+        />
+      )}
+      {showPrintPreview && selectedDevis && (
+        <PrintableQuote 
+          devis={selectedDevis} 
+          onClose={handleClosePrintPreview}
         />
       )}
     </div>
