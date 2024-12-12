@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase-config';
+import { db } from '../../firebase';
 import { requestNotificationPermission, onMessageListener } from '../../services/notificationService';
 import { useAuth } from '../../contexts/AuthContext';
 import { eventBus, LOGOUT_EVENT } from '../../utils/eventBus';

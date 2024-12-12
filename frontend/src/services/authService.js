@@ -51,90 +51,27 @@ export const register = async (email, password, role, userData) => {
   let createdUser = null;
   
   try {
-    if (!userData || !userData.displayName) {
-      throw new Error('Les données utilisateur sont incomplètes');
-    }
-
-    // Créer l'utilisateur dans Firebase Auth
+    // 1. Créer l'utilisateur dans Firebase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     createdUser = userCredential.user;
 
-    // Préparer les données pour Firestore
+    // 2. Préparer les données de base
     const userDataForFirestore = {
+      uid: createdUser.uid,
       email,
       role,
-      displayName: userData.displayName,
+      displayName: userData.displayName || userData.companyName,
       createdAt: new Date().toISOString(),
-      status: role === 'professionnel' ? 'pending' : 'active'
+      status: role === 'professionnel' ? 'pending' : 'active',
+      type: role
     };
 
-    // Si c'est un professionnel, ajouter les données professionnelles
+    // 3. Si professionnel, ajouter les données spécifiques
     if (role === 'professionnel') {
-      // Vérifier les champs requis
-      const requiredFields = [
-        'companyName',
-        'siret',
-        'address',
-        'sector',
-        'phone',
-        'bankName',
-        'iban',
-        'bic',
-        'serviceDescription',
-        'workingArea',
-        'rates'
-      ];
-
-      const missingFields = requiredFields.filter(field => !userData[field]);
-      if (missingFields.length > 0) {
-        throw new Error(`Champs obligatoires manquants : ${missingFields.join(', ')}`);
-      }
-
-      // Gérer l'upload des documents
-      const uploadedDocs = {};
-      if (userData.documents) {
-        for (const [key, file] of Object.entries(userData.documents)) {
-          if (file) {
-            try {
-              // Créer un nom de fichier unique
-              const extension = file.name.split('.').pop();
-              const fileName = `${key}_${Date.now()}.${extension}`;
-　　 　 　 　
-              // Créer une référence avec le bon chemin
-              const storageRef = ref(storage, `documents/${createdUser.uid}/${fileName}`);
-　　 　 　 　
-              // Définir les métadonnées
-              const metadata = {
-                contentType: file.type,
-                customMetadata: {
-                  uploadedBy: createdUser.uid,
-                  documentType: key
-                }
-              };
-
-              // Upload avec métadonnées
-              const snapshot = await uploadBytes(storageRef, file, metadata);
-              const downloadURL = await getDownloadURL(snapshot.ref);
-　　 　 　 　
-              uploadedDocs[key] = {
-                url: downloadURL,
-                fileName,
-                contentType: file.type,
-                uploadedAt: new Date().toISOString()
-              };
-            } catch (error) {
-              throw new Error(`Erreur lors de l'upload du document ${key}`);
-            }
-          }
-        }
-      }
-
-      // Ajouter les données professionnelles
       Object.assign(userDataForFirestore, {
         companyName: userData.companyName,
         siret: userData.siret,
         address: userData.address,
-        sector: userData.sector,
         phone: userData.phone,
         bankName: userData.bankName,
         iban: userData.iban,
@@ -143,27 +80,32 @@ export const register = async (email, password, role, userData) => {
         workingArea: userData.workingArea,
         rates: userData.rates,
         acceptTerms: userData.acceptTerms,
-        documents: uploadedDocs
+        documents: userData.documents || {}
       });
     }
 
-    // Sauvegarder dans Firestore
+    // 4. Sauvegarder dans Firestore
     await setDoc(doc(db, 'users', createdUser.uid), userDataForFirestore);
 
-    return createdUser;
+    return {
+      user: createdUser,
+      userData: userDataForFirestore
+    };
   } catch (error) {
-    // Si une erreur se produit après la création de l'utilisateur, on le supprime
+    // 5. En cas d'erreur, nettoyer
     if (createdUser) {
       try {
         await createdUser.delete();
       } catch (deleteError) {
-        throw deleteError;
+        console.error('Erreur lors de la suppression du compte:', deleteError);
       }
     }
     
+    // 6. Propager l'erreur avec un message approprié
+    const errorMessage = error.code ? getErrorMessage(error) : error.message;
     throw {
-      code: error.code,
-      message: getErrorMessage(error)
+      code: error.code || 'unknown',
+      message: errorMessage
     };
   }
 };

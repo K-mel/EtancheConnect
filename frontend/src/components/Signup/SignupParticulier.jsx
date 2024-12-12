@@ -5,7 +5,7 @@ import './Signup.css';
 
 const SignupParticulier = () => {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { register } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -36,20 +36,23 @@ const SignupParticulier = () => {
       setError('');
       setLoading(true);
       
-      await signup(formData.email, formData.password, 'particulier', {
+      await register(formData.email, formData.password, 'particulier', {
+        displayName: `${formData.prenom} ${formData.nom}`,
         nom: formData.nom,
         prenom: formData.prenom,
-        telephone: formData.telephone,
-        type: 'particulier'
+        phone: formData.telephone,
+        type: 'particulier',
+        status: 'active',
+        createdAt: new Date().toISOString()
       });
       
       navigate('/dashboard');
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
-      setError('Échec de la création du compte');
+      setError(error.message || 'Échec de la création du compte');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (

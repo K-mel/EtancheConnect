@@ -22,18 +22,18 @@
       "collectionGroup": "messages",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "participants",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
   ],

@@ -3,42 +3,63 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  padding: 20px;
-  background-color: #f5f5f5;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 .signup-form {
   background: white;
   padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 500px;
+  max-width: 800px;
 }
 
 .signup-form h2 {
+  color: #2d3748;
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
   text-align: center;
-  color: #333;
+}
+
+.signup-form p {
+  color: #4a5568;
+  text-align: center;
   margin-bottom: 2rem;
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #666;
+  color: #4a5568;
+  font-weight: 500;
 }
 
-.form-group input,
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"],
+.form-group input[type="tel"],
+.form-group select,
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.5rem;
   font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
 }
 
 .form-group textarea {
@@ -46,35 +67,187 @@
   resize: vertical;
 }
 
+.form-group input[type="file"] {
+  border: 2px dashed #e2e8f0;
+  padding: 1rem;
+  cursor: pointer;
+}
+
+.form-group input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+.form-group select {
+  background-color: white;
+}
+
+button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 0 0.5rem;
+}
+
+button[type="submit"] {
+  background-color: #4299e1;
+  color: white;
+}
+
+button[type="button"] {
+  background-color: #edf2f7;
+  color: #4a5568;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(66, 153, 225, 0.15);
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .alert {
   padding: 1rem;
-  border-radius: 4px;
+  border-radius: 0.5rem;
   margin-bottom: 1rem;
 }
 
 .alert-error {
-  background-color: #fee2e2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background-color: #fff5f5;
+  color: #e53e3e;
+  border: 1px solid #feb2b2;
 }
 
-button[type="submit"] {
-  width: 100%;
-  padding: 0.75rem;
-  background-color: #2563eb;
+.signup-success {
+  text-align: center;
+  padding: 2rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin: 2rem auto;
+}
+
+.signup-success h2 {
+  color: #2d3748;
+  margin-bottom: 1rem;
+}
+
+.signup-success p {
+  color: #4a5568;
+  line-height: 1.6;
+}
+
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.step {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  color: #4a5568;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0.5rem;
+  font-weight: 600;
+}
+
+.step.active {
+  background-color: #4299e1;
   color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 1rem;
+}
+
+.step.completed {
+  background-color: #48bb78;
+  color: white;
+}
+
+.step-title {
+  text-align: center;
+  color: #2d3748;
+  font-size: 1.2rem;
+  margin-bottom: 2rem;
+  font-weight: 600;
+}
+
+.button-group {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.sectors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.sector-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+}
+
+.file-upload {
+  border: 2px dashed #e2e8f0;
+  padding: 1.5rem;
+  text-align: center;
+  border-radius: 0.5rem;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.3s ease;
 }
 
-button[type="submit"]:hover {
-  background-color: #1d4ed8;
+.file-upload:hover {
+  border-color: #4299e1;
+  background-color: #ebf8ff;
 }
 
-button[type="submit"]:disabled {
-  background-color: #93c5fd;
-  cursor: not-allowed;
+.file-upload i {
+  font-size: 2rem;
+  color: #4299e1;
+  margin-bottom: 0.5rem;
+}
+
+.terms-container {
+  background-color: #f7fafc;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.terms-container h3 {
+  color: #2d3748;
+  margin-bottom: 1rem;
+}
+
+.terms-container ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.terms-container li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.terms-container li::before {
+  content: "•";
+  color: #4299e1;
 }

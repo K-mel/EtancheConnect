@@ -6,203 +6,107 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserRole() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data.role;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrateur';
+      return isAuthenticated() && getUserRole() == 'administrateur';
     }
 
-    function isProfessionnel() {
-      return isAuthenticated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professionnel';
-    }
-
-    function isParticulier() {
-      return isAuthenticated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'particulier';
-    }
-
-    // Fonction pour vérifier si l'utilisateur est participant à un message
-    function isParticipant(data) {
-      return isAuthenticated() && (
-        request.auth.uid in data.participants ||
-        request.auth.uid == data.senderId ||
-        request.auth.uid == data.recipientId
-      );
-    }
-
-    // Règles pour la collection userTokens
-    match /userTokens/{userId} {
-      allow read: if isAuthenticated() && (
-        userId == request.auth.uid ||
-        isAdmin()
-      );
-      allow write: if isAuthenticated() && (
-        userId == request.auth.uid ||
-        isAdmin()
-      );
-    }
-
-    // Règles pour la collection messages
-    match /messages/{messageId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+    function isMessageParticipant(messageData) {
+      return request.auth.uid == messageData.senderId || 
+             request.auth.uid == messageData.receiverId ||
+             messageData.participants.hasAny([request.auth.uid]);
     }
 
     // Règles pour la collection users
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow list: if isAuthenticated() && (
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Règles pour les messages
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (
         isAdmin() || 
-        request.auth.uid == userId
+        resource.data.senderId == request.auth.uid || 
+        resource.data.receiverId == request.auth.uid ||
+        resource.data.participants.hasAny([request.auth.uid])
       );
+      
+      allow create: if isAuthenticated();
       
       allow update: if isAuthenticated() && (
-        (isAdmin() && (
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'updatedAt']) ||
-          isAdmin()
-        )) ||
-        request.auth.uid == userId
-      );
-      
-      allow create: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        isAdmin()
+        isAdmin() || 
+        isMessageParticipant(resource.data) ||
+        (resource.data.receiverId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']))
       );
       
       allow delete: if isAdmin();
     }
 
-    // Règles pour la collection devis
-    match /devis/{devisId} {
-      allow read, list: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || 
-        request.auth.uid == resource.data.professionalId ||
-        isProfessionnel() ||
-        isAdmin()
-      );
-      
-      allow create: if isAuthenticated() && (
-        (isParticulier() && request.resource.data.userId == request.auth.uid) || 
-        (isProfessionnel() && request.resource.data.professionalId == request.auth.uid) ||
-        isAdmin()
-      );
-      
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || 
-        request.auth.uid == resource.data.professionalId ||
-        isProfessionnel() ||
-        isAdmin()
-      );
-      
-      allow delete: if isAuthenticated() && (
-        (isParticulier() && resource.data.userId == request.auth.uid) ||
-        (isProfessionnel() && resource.data.professionalId == request.auth.uid) ||
-        isAdmin()
-      );
-    }
-
-    // Règles pour la collection projects
-    match /projects/{projectId} {
-      allow read, list: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || 
-        request.auth.uid == resource.data.professionalId ||
-        isProfessionnel() ||
-        isAdmin()
-      );
-      
-      allow create: if isAuthenticated() && (
-        (isParticulier() && request.resource.data.userId == request.auth.uid) || 
-        (isProfessionnel() && request.resource.data.professionalId == request.auth.uid) ||
-        isAdmin()
-      );
-      
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || 
-        request.auth.uid == resource.data.professionalId ||
-        isProfessionnel() ||
-        isAdmin()
-      );
-      
-      allow delete: if isAuthenticated() && (
-        (isParticulier() && resource.data.userId == request.auth.uid) ||
-        (isProfessionnel() && resource.data.professionalId == request.auth.uid) ||
-        isAdmin()
-      );
-    }
-
-    // Règles pour la collection contacts
-    match /contacts/{contactId} {
-      allow read, list: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId ||
-        request.auth.uid == resource.data.professionalId ||
-        isAdmin()
-      );
-      
-      allow create: if isAuthenticated() && (
-        request.resource.data.userId == request.auth.uid ||
-        isAdmin()
-      );
-      
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId ||
-        request.auth.uid == resource.data.professionalId ||
-        isAdmin()
-      );
-      
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId ||
-        isAdmin()
-      );
-    }
-
-    // Règles pour les notifications
+    // Règles pour la collection notifications
     match /notifications/{notificationId} {
-      // Permettre la lecture si :
-      // 1. L'utilisateur est authentifié ET
-      // 2. Soit c'est sa propre notification OU c'est un admin
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        isAdmin()
+        request.auth.uid == resource.data.userId || isAdmin()
       );
-      
-      // Permettre l'écriture si :
-      // 1. L'utilisateur est authentifié ET
-      // 2. Soit c'est sa propre notification OU c'est un admin
-      allow write: if isAuthenticated() && (
-        request.resource.data.userId == request.auth.uid ||
-        isAdmin()
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
       );
+      allow delete: if isAdmin();
     }
 
     // Règles pour la collection activites
     match /activites/{activiteId} {
-      // Permettre la lecture si :
-      // 1. L'utilisateur est authentifié ET
-      // 2. Soit c'est un admin OU l'activité est liée à l'utilisateur
-      allow read: if isAuthenticated() && (
-        isAdmin() ||
-        resource.data.userId == request.auth.uid
-      );
-      
-      // Permettre l'écriture si :
-      // 1. L'utilisateur est authentifié ET
-      // 2. Soit c'est un admin OU l'activité est créée par l'utilisateur
-      allow write: if isAuthenticated() && (
-        isAdmin() ||
-        request.resource.data.userId == request.auth.uid
-      );
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // Règles pour les statistiques
+    // Règles pour la collection dashboard_data
+    match /dashboard_data/{docId} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Règles pour la collection devis
+    match /devis/{devisId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Règles pour la collection projects
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Règles pour la collection devis_reponses
+    match /devis_reponses/{devisReponseId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Règles pour la collection stats
     match /stats/{statId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // Règle par défaut pour les autres collections
+    // Règles pour la collection deletedMessages
+    match /deletedMessages/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Règle par défaut - Bloquer tout accès non explicitement autorisé
     match /{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../../firebase-config';
+import { db } from '../../../firebase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { createQuoteRequestValidatedNotification, notifyProfessionalsNewQuoteRequest } from '../../../services/notificationService';
 import '../styles/validations.css';

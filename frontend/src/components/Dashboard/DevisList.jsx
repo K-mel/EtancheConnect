@@ -55,26 +55,30 @@ const DevisList = ({ userType }) => {
   const setupMessagesListener = useCallback(() => {
     if (!currentUser || userType !== 'professionnel') return;
 
-    const messagesRef = collection(db, 'messages');
-    const q = query(
-      messagesRef,
-      where('senderId', '==', currentUser.uid),
-      where('type', '==', 'question')
-    );
+    try {
+      const messagesRef = collection(db, 'messages');
+      const q = query(
+        messagesRef,
+        where('senderId', '==', currentUser.uid),
+        where('type', '==', 'question'),
+        where('deleted', '==', false)
+      );
 
-    return onSnapshot(q, (snapshot) => {
-      const activeMessages = new Set();
-      snapshot.forEach((doc) => {
-        const messageData = doc.data();
-        // Vérification du statut deleted dans le code plutôt que dans la requête
-        if (messageData.devisId && messageData.deleted !== true) {
-          activeMessages.add(messageData.devisId);
-        }
+      return onSnapshot(q, (snapshot) => {
+        const activeMessages = new Set();
+        snapshot.forEach((doc) => {
+          const messageData = doc.data();
+          if (messageData.devisId) {
+            activeMessages.add(messageData.devisId);
+          }
+        });
+        setDevisWithMessages(activeMessages);
+      }, (error) => {
+        console.error("Erreur lors de l'écoute des messages:", error);
       });
-      setDevisWithMessages(activeMessages);
-    }, (error) => {
-      console.error("Erreur lors de l'écoute des messages:", error);
-    });
+    } catch (error) {
+      console.error("Erreur lors de la configuration du listener:", error);
+    }
   }, [currentUser, userType]);
 
   useEffect(() => {
@@ -320,14 +324,15 @@ const DevisList = ({ userType }) => {
   };
 
   const handleQuestionSubmit = async (devisId, particulierId) => {
-    const validation = validateQuestionContent(questionContent);
-    if (!validation.isValid) {
-      setMessageError(validation.error);
-      return;
-    }
-
     try {
       setIsSubmitting(true);
+      setMessageError('');
+
+      const validation = validateQuestionContent(questionContent);
+      if (!validation.isValid) {
+        setMessageError(validation.error);
+        return;
+      }
 
       // Créer le message dans la collection messages
       const messageData = {
@@ -344,37 +349,43 @@ const DevisList = ({ userType }) => {
       };
 
       const messageRef = await addDoc(collection(db, 'messages'), messageData);
+      console.log('Message créé avec succès:', messageRef.id);
 
+      // Créer la notification
       const notificationData = {
-        type: 'NEW_MESSAGE',  // Utiliser un des types existants
+        type: 'NEW_MESSAGE',
         title: 'Nouveau message à valider',
         message: `Un professionnel a posé une question sur un devis : "${questionContent.substring(0, 50)}${questionContent.length > 50 ? '...' : ''}"`,
         devisId: devisId,
         messageId: messageRef.id,
         senderId: currentUser.uid,
         senderRole: 'professionnel',
-        userId: 'YnxY2NZj9lNYAXZVqzAc5mY7AHy1',
-        receiverId: 'YnxY2NZj9lNYAXZVqzAc5mY7AHy1',
+        userId: particulierId,
+        receiverId: particulierId,
         messageContent: questionContent,
         createdAt: serverTimestamp(),
         read: false,
         status: 'unread',
         requiresAction: true
       };
-      
 
       await addDoc(collection(db, 'notifications'), notificationData);
+      console.log('Notification créée avec succès');
 
       // Réinitialiser le formulaire
       setQuestionContent('');
       setIsQuestionModalOpen(false);
       setMessageError('');
       
+      // Mettre à jour l'état local
+      setDevisWithMessages(prev => new Set([...prev, devisId]));
+      
       // Afficher un message de confirmation
-      alert('Votre message a été envoyé et est en attente de validation par l\'administrateur. Vous pouvez le consulter dans l\'onglet Messages.');
+      alert('Votre question a été envoyée et est en attente de validation par l\'administrateur.');
 
     } catch (error) {
-      setMessageError('Erreur lors de l\'envoi de la question: ' + error.message);
+      console.error('Erreur lors de l\'envoi de la question:', error);
+      setMessageError('Une erreur est survenue lors de l\'envoi de la question.');
     } finally {
       setIsSubmitting(false);
     }
@@ -426,7 +437,7 @@ const DevisList = ({ userType }) => {
   const renderActions = (devis) => {
     if (userType === 'administrateur' && devis.status === 'en_attente') {
       return (
-        <>
+        <div className="action-buttons">
           <button 
             className="action-button validate"
             onClick={() => handleValidateDevis(devis.id)}
@@ -439,7 +450,7 @@ const DevisList = ({ userType }) => {
           >
             Refuser
           </button>
-        </>
+        </div>
       );
     }
     
@@ -452,12 +463,27 @@ const DevisList = ({ userType }) => {
           Voir
         </button>
         {userType === 'professionnel' && devis.status === 'valide' && (
-          <Link 
-            to={`/devis-professionnel/${devis.id}`}
-            className="action-button envoyer-devis"
-          >
-            Envoyer un devis
-          </Link>
+          <>
+            <Link 
+              to={`/devis-professionnel/${devis.id}`}
+              className="action-button envoyer-devis"
+            >
+              Envoyer un devis
+            </Link>
+            {!devisWithMessages.has(devis.id) && !devis.hasSignedQuote && (
+              <button
+                className="action-button question"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedDevis(devis);
+                  setIsQuestionModalOpen(true);
+                }}
+              >
+                Question
+              </button>
+            )}
+          </>
         )}
       </div>
     );
@@ -567,7 +593,6 @@ const DevisList = ({ userType }) => {
                   Modifier le devis
                 </button>
               )}
-　
 　
               {selectedDevis.photos && selectedDevis.photos.length > 0 && (
                 <div>
@@ -687,57 +712,68 @@ const DevisList = ({ userType }) => {
               <div className="error-message">{error}</div>
             ) : (
               <div className="devis-table-container">
-                {devis.length === 0 ? (
-                  <p className="no-devis-message">Aucun devis disponible</p>
-                ) : (
-                  <table className="devis-table">
-                    <thead>
-                      <tr>
-                        <th>N° Demande</th>
-                        <th>Date</th>
-                        <th>Type de projet</th>
-                        <th>Surface</th>
-                        <th>Ville</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDevis.map((devis) => (
-                        <tr key={devis.id} className={devis.status}>
-                          <td>{formatDevisNumber(devis.id)}</td>
-                          <td>{devis.createdAt}</td>
-                          <td>{devis.typeProjet}</td>
-                          <td>{devis.surface} m²</td>
-                          <td>{devis.ville}</td>
-                          <td>
-                            <span className={getStatusClass(devis.status)}>
-                              {getStatusLabel(devis.status)}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="devis-actions-cell">
-                              <button 
-                                onClick={() => setSelectedDevis(devis)} 
-                                className="action-button voir"
-                              >
-                                Voir
-                              </button>
-                              {userType === 'professionnel' && devis.status === 'valide' && (
+                <table className="devis-table">
+                  <thead>
+                    <tr>
+                      <th>N° Demande</th>
+                      <th>Date</th>
+                      <th>Type de projet</th>
+                      <th>Surface</th>
+                      <th>Ville</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDevis.map((devis) => (
+                      <tr key={devis.id}>
+                        <td>{formatDevisNumber(devis.id)}</td>
+                        <td>{formatTimestamp(devis.createdAt)}</td>
+                        <td>{devis.typeProjet}</td>
+                        <td>{devis.surface} m²</td>
+                        <td>{devis.ville}</td>
+                        <td>
+                          <span className={`status ${devis.status.toLowerCase()}`}>
+                            {getStatusLabel(devis.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="action-button voir"
+                              onClick={() => setSelectedDevis(devis)}
+                            >
+                              Voir
+                            </button>
+                            {userType === 'professionnel' && devis.status === 'valide' && (
+                              <>
                                 <Link 
                                   to={`/devis-professionnel/${devis.id}`}
                                   className="action-button envoyer-devis"
                                 >
                                   Envoyer un devis
                                 </Link>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                                {!devisWithMessages.has(devis.id) && !devis.hasSignedQuote && (
+                                  <button
+                                    className="action-button question"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setSelectedDevis(devis);
+                                      setIsQuestionModalOpen(true);
+                                    }}
+                                  >
+                                    Question
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -780,6 +816,40 @@ const DevisList = ({ userType }) => {
           </div>
         </div>
       )}
+
+{isQuestionModalOpen && selectedDevis && (
+  <div className="modal">
+    <div className="modal-content">
+      <h2>Poser une question sur le devis {formatDevisNumber(selectedDevis.id)}</h2>
+      <textarea
+        value={questionContent}
+        onChange={(e) => setQuestionContent(e.target.value)}
+        placeholder="Posez votre question ici..."
+        className="question-textarea"
+      />
+      {messageError && <p className="error-message">{messageError}</p>}
+      <div className="modal-buttons">
+        <button
+          onClick={() => handleQuestionSubmit(selectedDevis.id, selectedDevis.userId)}
+          disabled={isSubmitting || !questionContent.trim()}
+          className="submit-button"
+        >
+          {isSubmitting ? 'Envoi...' : 'Envoyer'}
+        </button>
+        <button
+          onClick={() => {
+            setIsQuestionModalOpen(false);
+            setQuestionContent('');
+            setMessageError('');
+          }}
+          className="cancel-button"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

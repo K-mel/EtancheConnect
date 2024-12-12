@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDoc, query, where, getDocs, serverTimestamp, orderBy } from 'firebase/firestore';
-import { db } from '../../firebase-config';
+import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   sendQuoteNotification, 

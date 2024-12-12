@@ -259,10 +259,11 @@ const Messages = ({ showDeleted }) => {
         // Pour un administrateur, on récupère tous les messages
         messagesQuery = query(collection(db, 'messages'));
       } else {
-        // Pour un particulier, on récupère ses messages
+        // Pour un particulier, on récupère ses messages sauf ceux en attente de validation
         messagesQuery = query(
           collection(db, 'messages'),
-          where('participants', 'array-contains', currentUser.uid)
+          where('participants', 'array-contains', currentUser.uid),
+          where('status', '!=', 'en_attente_validation')
         );
       }
 
@@ -292,9 +293,9 @@ const Messages = ({ showDeleted }) => {
             // Un administrateur voit tous les messages
             return true;
           } else {
-            // Un particulier voit ses messages et les messages approuvés
-            return message.participants.includes(currentUser.uid) || 
-                   (message.status === 'approved' && message.receiverId === currentUser.uid);
+            // Un particulier voit ses messages sauf ceux en attente de validation
+            return message.participants.includes(currentUser.uid) && 
+                   (message.status !== 'en_attente_validation' || message.senderId === currentUser.uid);
           }
         })
         .sort((a, b) => {
@@ -370,18 +371,64 @@ const Messages = ({ showDeleted }) => {
   };
 
   // Gestion des messages
+  const validateMessageContent = (content) => {
+    // Regex pour détecter les numéros de téléphone (formats français)
+    const phoneRegex = /(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/;
+    
+    // Regex pour détecter les emails
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    
+    // Regex pour détecter les URLs
+    const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/;
+    
+    // Vérification des patterns interdits
+    if (phoneRegex.test(content)) {
+      return {
+        isValid: false,
+        error: "Les numéros de téléphone ne sont pas autorisés dans les messages."
+      };
+    }
+    
+    if (emailRegex.test(content)) {
+      return {
+        isValid: false,
+        error: "Les adresses email ne sont pas autorisées dans les messages."
+      };
+    }
+    
+    if (urlRegex.test(content)) {
+      return {
+        isValid: false,
+        error: "Les URLs ne sont pas autorisées dans les messages."
+      };
+    }
+    
+    return {
+      isValid: true,
+      error: null
+    };
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!selectedMessage || !newMessage.trim()) return;
-  
+
+    // Valider le contenu du message
+    const validation = validateMessageContent(newMessage.trim());
+    if (!validation.isValid) {
+      setMessageError(validation.error);
+      setTimeout(() => setMessageError(''), 3000);
+      return;
+    }
+
     try {
       setIsSending(true);
       setMessageError('');
-  
+
       const receiverId = selectedMessage.senderId === currentUser.uid
         ? selectedMessage.receiverId
         : selectedMessage.senderId;
-  
+
       const messageData = {
         content: newMessage.trim(),
         senderId: currentUser.uid,
@@ -397,12 +444,12 @@ const Messages = ({ showDeleted }) => {
           timestamp: { seconds: Date.now() / 1000 } 
         })
       };
-  
+
       if (selectedFiles.length) {
         const uploadedFiles = await uploadImages(selectedFiles);
         messageData.files = uploadedFiles;
       }
-  
+
       const docRef = await addDoc(collection(db, 'messages'), messageData);
       await logActivity(
         ActivityTypes.MESSAGE,
@@ -414,10 +461,10 @@ const Messages = ({ showDeleted }) => {
         ...messageData, 
         id: docRef.id 
       });
-  
+
       setNewMessage('');
       setSelectedFiles([]);
-      
+
       const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
       if (userDoc.exists()) {
         await fetchMessages(userDoc.data().role);
@@ -740,13 +787,40 @@ const Messages = ({ showDeleted }) => {
 
   const renderMessage = (message) => {
     const isOwnMessage = message.senderId === currentUser?.uid;
-    const messageClass = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
+    const messageClass = `message ${isOwnMessage ? 'own-message' : ''} ${
+      message.status === 'en_attente_validation' ? 'message-pending' : ''
+    }`;
     const otherUserId = isOwnMessage ? message.receiverId : message.senderId;
     const otherUser = users[otherUserId];
     const messageDevisNumber = generateDemandeNumber(message);
 
     return (
-      <div key={message.id} className={messageClass}>
+      <div 
+        key={message.id} 
+        className={messageClass}
+        style={message.status === 'en_attente_validation' ? {
+          opacity: '0.8',
+          position: 'relative',
+          border: '1px dashed #f59e0b',
+          padding: '8px',
+          marginBottom: '24px'
+        } : {}}
+      >
+        {message.status === 'en_attente_validation' && (
+          <div style={{
+            position: 'absolute',
+            top: '-20px',
+            right: '10px',
+            backgroundColor: '#f59e0b',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontWeight: '500'
+          }}>
+            En attente de validation
+          </div>
+        )}
         <div className="message-content">
           {messageDevisNumber !== 'Sans numéro' && (
             <div className="message-reference">
@@ -968,7 +1042,7 @@ const Messages = ({ showDeleted }) => {
                 : selectedMessage.senderId;
               const otherUser = users[otherUserId];
               const demandeNumber = generateDemandeNumber(selectedMessage);
-　　 　 　 　
+　
               return (
                 <>
                   <h2>{otherUser?.displayName || otherUser?.companyName || 'Conversation'}</h2>

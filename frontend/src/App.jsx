@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Navigation from './components/Navigation/Navigation';
 import Home from './components/Home/Home';
-import Register from './components/Register/Register';
-import Login from './components/Login/Login';
+import Register from './components/Auth/Register';
+import Login from './components/Auth/Login';
 import Contact from './components/Contact/Contact';
 import Dashboard from './components/Dashboard/Dashboard';
 import ForgotPassword from './components/ForgotPassword/ForgotPassword';
@@ -16,6 +16,8 @@ import HowItWorks from './components/HowItWorks/HowItWorks';
 import ScrollToTop from './components/ScrollToTop/ScrollToTop';
 import DevisParticulier from './components/DevisParticulier/DevisParticulier';
 import ProfessionalQuoteForm from './components/QuoteModule/ProfessionalQuoteForm';
+import SignupParticulier from './components/Signup/SignupParticulier';
+import SignupProfessionnel from './components/Signup/SignupProfessionnel';
 import './App.css';
 
 function App() {
@@ -27,6 +29,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register/particulier" element={<SignupParticulier />} />
+          <Route path="/register/professionnel" element={<SignupProfessionnel />} />
           <Route path="/login" element={<Login />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />

@@ -1,248 +1,133 @@
+/* Styles pour le conteneur de la liste des devis */
 .devis-list-container {
-  padding: 1.5rem;
+  padding: 20px;
   background-color: #f8f9fa;
-  min-height: calc(100vh - 64px);
 }
 
-.devis-header {
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  color: var(--white);
-  border-radius: var(--border-radius);
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--box-shadow);
-}
-
-.devis-header h1 {
-  color: var(--white);
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.devis-header p {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.1rem;
-}
-
-.devis-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.devis-actions button {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--white);
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--border-radius);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: var(--transition);
-  font-size: 1rem;
-}
-
-.devis-actions button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-
-.devis-table-container {
-  width: 100%;
-  overflow-x: auto;
+/* Styles pour le wrapper du tableau */
+.devis-table-wrapper {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.06);
-  margin: 1rem 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
+/* Reset du tableau */
 .devis-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
   margin: 0;
-  table-layout: fixed;
+  padding: 0;
+  background: white;
 }
 
-.devis-table th,
-.devis-table td {
-  padding: 16px 24px;
-}
-
+/* En-têtes */
 .devis-table th {
-  background-color: #f8fafc;
-  text-align: left;
+  background: #f8f9fa;
+  color: #495057;
   font-weight: 600;
-  color: #344767;
-  border-bottom: 2px solid #edf2f7;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  text-align: left;
+  padding: 12px 15px;
+  border-bottom: 2px solid #dee2e6;
 }
 
+/* Cellules */
 .devis-table td {
-  border-bottom: 1px solid #edf2f7;
-  color: #4a5568;
-  font-size: 0.9375rem;
-  vertical-align: middle;
-  background-color: white;
-  line-height: 1.5;
+  padding: 12px 15px;
+  border-bottom: 1px solid #e9ecef;
+  color: #495057;
 }
 
-.devis-table th:nth-child(1), 
-.devis-table td:nth-child(1) { /* N° Demande */
-  width: 15%;
-  min-width: 140px;
-  padding-right: 32px;
+/* Largeurs des colonnes */
+.devis-table th:first-child,
+.devis-table td:first-child {
+  width: 130px;
+  max-width: 130px;
 }
 
 .devis-table th:nth-child(2),
-.devis-table td:nth-child(2) { /* Date */
-  width: 12%;
-  min-width: 120px;
-  padding-right: 32px;
+.devis-table td:nth-child(2) {
+  width: 120px;
+  max-width: 120px;
 }
 
 .devis-table th:nth-child(3),
-.devis-table td:nth-child(3) { /* Type de projet */
-  width: 15%;
-  min-width: 140px;
-  padding-right: 32px;
+.devis-table td:nth-child(3) {
+  width: 150px;
+  max-width: 150px;
 }
 
 .devis-table th:nth-child(4),
-.devis-table td:nth-child(4) { /* Surface */
-  width: 10%;
-  min-width: 100px;
-  padding-right: 32px;
-  text-align: right;
+.devis-table td:nth-child(4) {
+  width: 80px;
+  max-width: 80px;
 }
 
 .devis-table th:nth-child(5),
-.devis-table td:nth-child(5) { /* Ville */
-  width: 15%;
-  min-width: 140px;
-  padding-right: 32px;
+.devis-table td:nth-child(5) {
+  width: 120px;
+  max-width: 120px;
 }
 
 .devis-table th:nth-child(6),
-.devis-table td:nth-child(6) { /* Status */
-  width: 13%;
-  min-width: 120px;
-  padding-right: 32px;
+.devis-table td:nth-child(6) {
+  width: 100px;
+  max-width: 100px;
 }
 
-.devis-table th:nth-child(7),
-.devis-table td:nth-child(7) { /* Actions */
-  width: 20%;
-  min-width: 200px;
+.devis-table th:last-child,
+.devis-table td:last-child {
+  width: 280px;
+  max-width: 280px;
+  padding-right: 8px;
 }
 
-.devis-table td {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.devis-table tbody tr:nth-child(even) {
-  background-color: #f8fafc;
-}
-
-.devis-table tbody tr:hover td {
-  background-color: #f1f5f9;
-}
-
-.devis-table td:first-child a {
-  color: #2563eb;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.devis-table td:first-child a:hover {
-  color: #1d4ed8;
-  text-decoration: underline;
-}
-
-.devis-actions-cell {
+/* Conteneur des actions */
+.action-buttons {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 
+/* Boutons */
 .action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
+  padding: 6px 12px;
+  border-radius: 4px;
   border: none;
-  border-radius: 8px;
-  font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
   white-space: nowrap;
-  min-width: 100px;
 }
 
 .action-button.voir {
-  background-color: #3b82f6;
+  background-color: #3498db;
   color: white;
-  padding: 6px 12px;
-  min-width: 80px;
-}
-
-.action-button.voir:hover {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
 }
 
 .action-button.envoyer-devis {
-  background-color: #22c55e;
+  background-color: #2ecc71;
   color: white;
-  font-weight: 600;
-  padding: 8px 20px;
-  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
 }
 
-.action-button.envoyer-devis:hover {
-  background-color: #16a34a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(34, 197, 94, 0.3);
+.action-button.question {
+  background-color: #e74c3c;
+  color: white;
 }
 
-.action-button.envoyer-devis:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
-}
-
-.actions-container {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
+/* Status */
 .status {
+  display: inline-block;
   padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.875rem;
+  border-radius: 4px;
+  font-size: 14px;
   font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .status.valide {
-  background-color: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+  background-color: #2ecc71;
+  color: white;
 }
 
 .status-waiting {
@@ -299,173 +184,39 @@
   border: 1px solid #059669;
 }
 
-.loading-spinner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 3rem;
-  color: #6b7280;
-  font-size: 1rem;
-}
-
-.error-message {
-  color: #dc2626;
-  text-align: center;
-  padding: 1rem;
-  background: #fee2e2;
+/* Conteneur du tableau avec scroll */
+.devis-table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: white;
   border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin: 1rem 0;
-  border: 1px solid #fecaca;
 }
 
-.no-devis-message {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-  font-style: italic;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+/* Empêcher le wrapping du texte */
+.devis-table td,
+.devis-table th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+/* Hover sur les lignes */
+.devis-table tbody tr:hover {
+  background-color: #f8f9fa;
 }
 
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: #333;
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #666;
-}
-
-.close-button:hover {
-  color: #333;
-}
-
-.modal-body {
-  margin-bottom: 20px;
-}
-
-.detail-row {
-  margin-bottom: 15px;
-}
-
-.detail-row strong {
-  display: block;
-  margin-bottom: 5px;
-  color: #666;
-}
-
-.detail-row p {
-  margin: 5px 0;
-  color: #333;
-}
-
-.photos-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.devis-photo {
-  width: 100%;
-  height: 150px;
-  object-fit: cover;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.devis-photo:hover {
-  transform: scale(1.05);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
-}
-
-.modal-footer button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  background-color: #6c757d;
-  color: white;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.modal-footer button:hover {
-  background-color: #5a6268;
-}
-
-.search-container {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 10px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 0.9375rem;
-  color: #4a5568;
-  transition: all 0.2s ease;
-  margin-bottom: 1.5rem;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.search-input::placeholder {
-  color: #a0aec0;
+/* Responsive design */
+@media (max-width: 768px) {
+  .devis-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .action-button {
+    width: 100%;
+  }
 }
 
 @media screen and (max-width: 1024px) {
@@ -578,18 +329,44 @@
   }
 }
 
+/* Animation pour les boutons */
 @keyframes buttonPop {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.02);
-  }
-  100% {
-    transform: scale(1);
-  }
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .action-button:hover {
   animation: buttonPop 0.3s ease;
+}
+
+/* Styles pour le conteneur de recherche */
+.search-container {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  color: #4a5568;
+  transition: all 0.2s ease;
+  margin-bottom: 1.5rem;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-input::placeholder {
+  color: #a0aec0;
 }

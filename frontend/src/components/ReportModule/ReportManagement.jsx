@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase-config';
+import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { sendAdminNotification } from '../../services/notificationService';
 import './ReportManagement.css';

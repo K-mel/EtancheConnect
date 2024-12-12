@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { formatDistance } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -40,10 +40,19 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
     const fetchDashboardData = async () => {
       try {
         const user = auth.currentUser;
+        console.log('Current user:', user);
+        console.log('User role:', userRole);
+
         if (!user) {
+          console.log('No user logged in');
           setLoading(false);
           return;
         }
+
+        // Vérifier explicitement le rôle dans Firestore
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        console.log('User document:', userDocSnap.data());
 
         let statsData = {
           devis: 0,
@@ -61,65 +70,38 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
 
         // Pour les administrateurs, récupérer toutes les données
         if (userRole === 'administrateur') {
-          // Compter tous les devis
-          const allDevisSnapshot = await getDocs(collection(db, 'devis'));
-          statsData.devis = allDevisSnapshot.size;
+          console.log('Fetching admin data...');
+          try {
+            // Compter tous les devis
+            console.log('Fetching devis...');
+            const allDevisSnapshot = await getDocs(collection(db, 'devis'));
+            statsData.devis = allDevisSnapshot.size;
+            console.log('Devis count:', statsData.devis);
 
-          // Compter tous les projets
-          const allProjetsSnapshot = await getDocs(collection(db, 'projects'));
-          statsData.projets = allProjetsSnapshot.size;
+            // Compter tous les projets
+            console.log('Fetching projects...');
+            const allProjetsSnapshot = await getDocs(collection(db, 'projects'));
+            statsData.projets = allProjetsSnapshot.size;
+            console.log('Projects count:', statsData.projets);
 
-          // Compter tous les messages
-          const allMessagesSnapshot = await getDocs(collection(db, 'messages'));
-          statsData.messagesTotaux = allMessagesSnapshot.size;
+            // Compter tous les messages
+            console.log('Fetching messages...');
+            const allMessagesSnapshot = await getDocs(collection(db, 'messages'));
+            statsData.messagesTotaux = allMessagesSnapshot.size;
+            console.log('Messages count:', statsData.messagesTotaux);
 
-          // Compter tous les utilisateurs
-          const allUsersSnapshot = await getDocs(collection(db, 'users'));
-          statsData.utilisateurs = allUsersSnapshot.size;
+            // Compter tous les utilisateurs
+            console.log('Fetching users...');
+            const allUsersSnapshot = await getDocs(collection(db, 'users'));
+            statsData.utilisateurs = allUsersSnapshot.size;
+            console.log('Users count:', statsData.utilisateurs);
 
-          // Compter les devis en attente
-          const devisEnAttenteQuery = query(
-            collection(db, 'devis'),
-            where('status', '==', 'en_attente')
-          );
-          const devisEnAttenteSnapshot = await getDocs(devisEnAttenteQuery);
-          statsData.devisEnAttente = devisEnAttenteSnapshot.size;
-
-          // Compter les devis en attente de signature
-          const devisEnAttenteSignatureQuery = query(
-            collection(db, 'devis'),
-            where('status', '==', 'en_attente_signature')
-          );
-          const devisEnAttenteSignatureSnapshot = await getDocs(devisEnAttenteSignatureQuery);
-          statsData.devisEnAttenteSignature = devisEnAttenteSignatureSnapshot.size;
-
-          // Récupérer les activités récentes
-          const recentActivitiesQuery = query(
-            collection(db, 'activites'),
-            orderBy('timestamp', 'desc'),
-            limit(5)
-          );
-          const recentActivitiesSnapshot = await getDocs(recentActivitiesQuery);
-          
-          const activities = recentActivitiesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              type: data.type,
-              title: data.title,
-              description: data.description,
-              time: new Date(data.timestamp.toDate()).toLocaleString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })
-            };
-          });
-
-          setRecentActivity(activities);
+          } catch (error) {
+            console.error('Error in admin data fetching:', error);
+            throw error;
+          }
         } else {
+          console.log('Fetching user-specific data...');
           // Pour les autres utilisateurs, récupérer leurs données spécifiques
           let devisQuery;
           if (userRole === 'professionnel') {
@@ -129,6 +111,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
             
             // Nombre total de devis
             statsData.devisRecus = devisSnapshot.size;
+            console.log('Devis reçus:', statsData.devisRecus);
             
             // Compter les devis par status
             let devisEnCours = 0;
@@ -145,6 +128,8 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
 
             statsData.devisEnCours = devisEnCours;
             statsData.devisSignes = devisSignes;
+            console.log('Devis en cours:', statsData.devisEnCours);
+            console.log('Devis signés:', statsData.devisSignes);
           } else {
             // Pour les particuliers
             devisQuery = query(
@@ -161,6 +146,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
             });
             
             statsData.devis = devisEnCours.length;
+            console.log('Devis en cours:', statsData.devis);
 
             // Compter les devis en attente de signature
             const devisSignatureQuery = query(
@@ -170,6 +156,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
             );
             const devisSignatureSnapshot = await getDocs(devisSignatureQuery);
             statsData.devisEnAttenteSignature = devisSignatureSnapshot.size;
+            console.log('Devis en attente de signature:', statsData.devisEnAttenteSignature);
           }
 
           // Messages non lus
@@ -180,6 +167,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           );
           const messagesNonLusSnapshot = await getDocs(messagesNonLusQuery);
           statsData.messagesNonLus = messagesNonLusSnapshot.size;
+          console.log('Messages non lus:', statsData.messagesNonLus);
 
           // Total des messages
           const messagesTotauxQuery = query(
@@ -188,6 +176,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
           );
           const messagesTotauxSnapshot = await getDocs(messagesTotauxQuery);
           statsData.messagesTotaux = messagesTotauxSnapshot.size;
+          console.log('Messages totaux:', statsData.messagesTotaux);
 
           // Ajout des activités récentes pour les particuliers
           if (userRole === 'particulier') {
@@ -217,6 +206,7 @@ const AperçuContent = ({ userRole, handleTabChange }) => {
             });
 
             setRecentActivity(activities);
+            console.log('Activités récentes:', activities);
           }
         }
 

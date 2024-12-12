@@ -14,11 +14,13 @@ import {
   startAfter 
 } from 'firebase/firestore';
 import { FaTrash, FaCheck, FaTimes, FaEye, FaHistory } from 'react-icons/fa';
-import { db } from '../../../firebase';
+import { db, auth } from '../../../firebase';
 import { createMessageNotification } from '../../../services/notificationService';
 import './MessagesContent.css';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const MessagesContent = () => {
+  const { currentUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [historyMessages, setHistoryMessages] = useState([]);
   const [allHistoryMessages, setAllHistoryMessages] = useState([]);
@@ -98,40 +100,68 @@ const MessagesContent = () => {
 
   const fetchMessages = async () => {
     try {
+      if (!currentUser) {
+        setError('Veuillez vous connecter pour accéder aux messages');
+        setLoading(false);
+        return;
+      }
+  
       setLoading(true);
       setError(null);
-      const messagesRef = collection(db, 'messages');
       
-      // Requête simplifiée pour ne récupérer que les messages en attente
-      const messagesQuery = query(
-        messagesRef,
-        where('status', 'in', ['pending', 'en_attente_validation'])
-      );
+      // Vérifier si l'utilisateur est un administrateur
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const isAdmin = userDoc.exists() && userDoc.data().role === 'administrateur';
+      
+      const messagesRef = collection(db, 'messages');
+      let messagesQuery;
+      
+      if (isAdmin) {
+        // Pour l'administrateur, récupérer tous les messages en attente de validation
+        messagesQuery = query(
+          messagesRef,
+          where('status', '==', 'en_attente_validation'),
+          where('type', '==', 'question'),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        // Pour les autres utilisateurs, récupérer leurs messages en attente
+        messagesQuery = query(
+          messagesRef,
+          where('recipientId', '==', currentUser.uid),
+          where('status', 'in', ['pending', 'en_attente_validation']),
+          orderBy('createdAt', 'desc')
+        );
+      }
       
       const messagesSnapshot = await getDocs(messagesQuery);
       const messagesPromises = messagesSnapshot.docs.map(async (doc) => {
         const messageData = doc.data();
         const senderName = await getUserData(messageData.senderId);
-        const receiverName = await getUserData(messageData.receiverId || messageData.recipientId);
+        const receiverName = await getUserData(messageData.receiverId);
         
         return {
           id: doc.id,
           ...messageData,
           senderName,
           receiverName,
-          timestamp: formatTimestamp(messageData.timestamp || messageData.createdAt)
+          timestamp: formatTimestamp(messageData.createdAt)
         };
       });
-
-      const messagesData = await Promise.all(messagesPromises);
+  
+      const loadedMessages = await Promise.all(messagesPromises);
+      
       // Tri côté client
-      const sortedMessages = messagesData.sort((a, b) => {
+      const sortedMessages = loadedMessages.sort((a, b) => {
         const dateA = new Date(a.timestamp);
         const dateB = new Date(b.timestamp);
         return dateB - dateA;
       });
-      
+  
       setMessages(sortedMessages);
+      setLastDoc(messagesSnapshot.docs[messagesSnapshot.docs.length - 1] || null);
+      setHasMore(messagesSnapshot.docs.length === 10);
+  
     } catch (err) {
       console.error('Erreur lors de la récupération des messages:', err);
       setError('Une erreur est survenue lors du chargement des messages');
